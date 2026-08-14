@@ -23,7 +23,11 @@ public sealed class GameObjectData
     public string Name { get; set; } = "GameObject";
     public bool Enabled { get; set; } = true;
     public string? SourcePrefabPath { get; set; }
-    public float X, Y, Rotation, ScaleX = 1, ScaleY = 1;
+    public float X { get; set; }
+    public float Y { get; set; }
+    public float Rotation { get; set; }
+    public float ScaleX { get; set; } = 1;
+    public float ScaleY { get; set; } = 1;
     public List<ComponentData> Components { get; set; } = new();
 }
 

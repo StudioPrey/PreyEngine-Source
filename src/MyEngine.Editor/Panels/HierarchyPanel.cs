@@ -28,10 +28,38 @@ public static class HierarchyPanel
 
         ImGui.Separator();
 
+        DrawDropZone(state);
+
         foreach (var root in state.ActiveScene.RootObjects.ToArray())
             DrawNode(root, state);
 
         ImGui.End();
+    }
+
+    /// <summary>
+    /// A dedicated, always-visible strip that accepts a texture/prefab dragged from the Content Browser —
+    /// deliberately a separate fixed-size widget (rather than trying to make the whole, content-filled tree
+    /// area a drop target) so the hit-test area is unambiguous regardless of how many rows are in the tree.
+    /// </summary>
+    private static void DrawDropZone(EditorState state)
+    {
+        var avail = ImGui.GetContentRegionAvail();
+        ImGui.PushStyleColor(ImGuiCol.Button, new System.Numerics.Vector4(0.16f, 0.18f, 0.23f, 1f));
+        ImGui.Button("Drop a texture or prefab here to add it to the scene", new System.Numerics.Vector2(avail.X, 30));
+        ImGui.PopStyleColor();
+
+        if (ImGui.BeginDragDropTarget())
+        {
+            var texturePath = DragDropPayloads.AcceptTarget(DragDropPayloads.Texture);
+            if (texturePath != null) AssetDropHandler.CreateSpriteFromTexture(state, texturePath);
+
+            var prefabPath = DragDropPayloads.AcceptTarget(DragDropPayloads.Prefab);
+            if (prefabPath != null) AssetDropHandler.InstantiatePrefab(state, prefabPath);
+
+            ImGui.EndDragDropTarget();
+        }
+
+        ImGui.Separator();
     }
 
     private static void CreateGameObject(EditorState state)

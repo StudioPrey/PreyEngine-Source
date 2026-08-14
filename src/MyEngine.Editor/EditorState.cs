@@ -67,12 +67,27 @@ public sealed class EditorState
 
     public List<string> Log { get; } = new();
 
+    /// <summary>True if EditScene has changes that haven't been saved to disk. Tracked automatically —
+    /// every scene-mutating action in this editor flows through the Undo stack, so listening to its
+    /// Changed event is enough; nothing needs to remember to flag this separately.</summary>
+    public bool IsDirty { get; private set; }
+
     public EditorState(string projectPath, AssetDatabase assets)
     {
         ProjectPath = projectPath;
         Assets = assets;
         EditScene = new Scene("Untitled Scene");
+
+        // Play Mode edits happen on the throwaway PlayScene clone, not EditScene, so they must not mark
+        // the persisted scene as having unsaved changes.
+        Undo.Changed += () =>
+        {
+            if (!IsPlaying) IsDirty = true;
+        };
     }
+
+    /// <summary>Call after successfully saving or loading a scene — it now exactly matches what's on disk.</summary>
+    public void MarkClean() => IsDirty = false;
 
     public void SelectGameObject(GameObject? go)
     {
@@ -90,8 +105,14 @@ public sealed class EditorState
 
     // Scenes and prefabs live inside Assets/ (like every other asset), matching the Unity convention of
     // a single browsable project root — there's no separate top-level Scenes/Prefabs folder anymore.
-    public string ScenesFolder => Directory.CreateDirectory(Path.Combine(ProjectPath, "Assets", "Scenes")).FullName;
-    public string PrefabsFolder => Directory.CreateDirectory(Path.Combine(ProjectPath, "Assets", "Prefabs")).FullName;
+    // These constants are the single source of truth for that location — anything that creates or looks
+    // for a scene/prefab should go through ScenesFolder/PrefabsFolder (absolute) or the *RelativeFolder
+    // constants (relative to Assets/, for AssetDatabase calls) rather than hardcoding "Scenes"/"Prefabs" again.
+    public const string ScenesRelativeFolder = "Scenes";
+    public const string PrefabsRelativeFolder = "Prefabs";
+
+    public string ScenesFolder => Directory.CreateDirectory(Path.Combine(ProjectPath, "Assets", ScenesRelativeFolder)).FullName;
+    public string PrefabsFolder => Directory.CreateDirectory(Path.Combine(ProjectPath, "Assets", PrefabsRelativeFolder)).FullName;
 
     /// <summary>Adds (or refreshes) a tab for this scene path so it shows in the tab strip.</summary>
     public void RegisterSceneTab(string path)

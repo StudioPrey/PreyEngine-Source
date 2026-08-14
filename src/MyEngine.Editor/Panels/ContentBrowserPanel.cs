@@ -1,7 +1,5 @@
 using System.Numerics;
 using ImGuiNET;
-using MyEngine.Core.SceneSystem;
-using MyEngine.Editor.UndoSystem;
 
 namespace MyEngine.Editor.Panels;
 
@@ -199,7 +197,7 @@ public static class ContentBrowserPanel
                 ImGui.EndDragDropSource();
             }
             if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
-                InstantiatePrefab(asset, state);
+                AssetDropHandler.InstantiatePrefab(state, asset.RelativePath);
         }
         else if (asset.Type == AssetType.Scene)
         {
@@ -252,31 +250,17 @@ public static class ContentBrowserPanel
             }
             else
             {
-                state.Assets.CreateScene(state.ContentBrowserFolder, name);
-                state.LogMessage($"Created scene '{name}'.");
+                // Scenes always live in Assets/Scenes — never wherever the browser happens to be pointed —
+                // so "File > Open Scene" (which only looks there) can always find every scene that exists,
+                // and there's only ever one place a new scene can end up.
+                state.Assets.CreateScene(EditorState.ScenesRelativeFolder, name);
+                state.ContentBrowserFolder = EditorState.ScenesRelativeFolder;
+                state.LogMessage($"Created scene '{name}' in Assets/{EditorState.ScenesRelativeFolder}.");
             }
         }
         catch (Exception ex)
         {
             state.LogMessage($"ERROR creating '{name}': {ex.Message}");
-        }
-    }
-
-    private static void InstantiatePrefab(AssetInfo asset, EditorState state)
-    {
-        try
-        {
-            var root = PrefabSerializer.Instantiate(asset.FullPath, state.ActiveScene);
-            state.SelectGameObject(root);
-            state.LogMessage($"Instantiated prefab '{asset.DisplayName}'.");
-
-            var command = CreateDeleteGameObjectCommand.ForCreate(
-                $"Instantiate {root.Name}", state.ActiveScene, state.Assets.ResolveSceneTextures, root);
-            state.Undo.Push(command);
-        }
-        catch (Exception ex)
-        {
-            state.LogMessage($"ERROR instantiating prefab: {ex.Message}");
         }
     }
 

@@ -229,6 +229,40 @@ public sealed class AssetDatabase : IDisposable
         return Path.GetRelativePath(_assetsRoot, fullPath).Replace('\\', '/');
     }
 
+    /// <summary>
+    /// Copies a file from outside the project (e.g. dropped in from the OS file manager) into
+    /// <paramref name="targetFolder"/> (relative to Assets/) and imports just that one file — deliberately
+    /// not a full Refresh(), so every other already-loaded texture is left completely untouched.
+    /// Returns the new asset's relative path. Only image files are supported.
+    /// </summary>
+    public string ImportExternalFile(string sourceFilePath, string targetFolder)
+    {
+        var ext = Path.GetExtension(sourceFilePath);
+        if (!ImageExtensions.Contains(ext))
+            throw new NotSupportedException($"'{ext}' files can't be imported this way — only images (.png, .jpg, .jpeg, .bmp).");
+
+        var targetDir = Path.Combine(_assetsRoot, targetFolder);
+        Directory.CreateDirectory(targetDir);
+
+        var baseName = Path.GetFileNameWithoutExtension(sourceFilePath);
+        var destPath = Path.Combine(targetDir, baseName + ext);
+        int suffix = 1;
+        while (File.Exists(destPath))
+        {
+            destPath = Path.Combine(targetDir, $"{baseName} ({suffix}){ext}");
+            suffix++;
+        }
+
+        File.Copy(sourceFilePath, destPath);
+
+        // make sure the folder the file landed in is tracked even if it was just created above
+        var relativeFolder = Path.GetRelativePath(_assetsRoot, targetDir).Replace('\\', '/');
+        if (relativeFolder != ".") _folders.Add(relativeFolder);
+
+        ImportFile(destPath);
+        return Path.GetRelativePath(_assetsRoot, destPath).Replace('\\', '/');
+    }
+
     public void Dispose()
     {
         _watcher?.Dispose();

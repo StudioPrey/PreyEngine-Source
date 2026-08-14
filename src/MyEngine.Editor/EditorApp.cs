@@ -1,11 +1,12 @@
+using System.Collections.Concurrent;
 using ImGuiNET;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 using MyEngine.Core.Components;
 using MyEngine.Core.Rendering;
 using MyEngine.Core.SceneSystem;
 using MyEngine.Editor.Panels;
-using MyEngine.Editor.UndoSystem;
 using MyEngine.EditorFramework;
 
 namespace MyEngine.Editor;
@@ -17,15 +18,31 @@ public class EditorApp : Game
     private ImGuiRenderer _imGui = null!;
     private EditorState _state = null!;
     private readonly GizmoSystem _gizmo = new();
+    private ProjectSettings _projectSettings = null!;
 
     private RenderTarget2D? _sceneTarget;
     private IntPtr _sceneTextureId = IntPtr.Zero;
     private System.Numerics.Vector2 _requestedViewportSize = new(1280, 720);
 
     // Refreshed every Draw call while rendering the scene, then reused by the gizmo and by
-    // viewport drag-and-drop (both need to convert between screen space and world space).
+    // both in-app and OS-level drag-and-drop (all need to convert between screen space and world space).
     private Matrix _currentViewMatrix = Matrix.Identity;
     private float _currentZoom = 1f;
+    private System.Numerics.Vector2 _lastViewportMin;
+    private System.Numerics.Vector2 _lastViewportMax;
+
+    // Files dropped onto the window from the OS (e.g. dragged in from File Explorer/Finder). The
+    // FileDrop event can fire off the main thread on some platforms, so it's queued and drained in
+    // Update() alongside the same pattern used for the filesystem watcher.
+    private readonly ConcurrentQueue<(string[] Files, System.Numerics.Vector2 ScreenPosition)> _pendingFileDrops = new();
+
+    // Set when an action (New Scene, Open Scene, switching a scene tab, ...) would discard unsaved
+    // changes to the current scene — instead of discarding immediately, we hold the action here and
+    // show a confirmation modal; the action only actually runs if the user confirms.
+    private Action? _pendingDestructiveAction;
+    private string _pendingDestructiveDescription = "";
+
+    private string _lastWindowTitle = "";
 
     public EditorApp(string projectPath)
     {
@@ -39,7 +56,6 @@ public class EditorApp : Game
         Content.RootDirectory = "Content";
         IsMouseVisible = true;
         Window.AllowUserResizing = true;
-        Window.Title = $"MyEngine Editor — {Path.GetFileName(projectPath.TrimEnd(Path.DirectorySeparatorChar))}";
     }
 
     protected override void LoadContent()
@@ -53,32 +69,91 @@ public class EditorApp : Game
         assets.Refresh();
 
         _state = new EditorState(_projectPath, assets);
+        _projectSettings = ProjectSettings.Load(_projectPath);
 
-        BuildDemoScene();
+        Window.FileDrop += OnFileDrop;
+
+        InitializeStartupScene();
         _state.LogMessage("Editor started. Welcome to MyEngine!");
     }
 
-    /// <summary>A tiny starter scene so the viewport isn't empty on first run.</summary>
-    private void BuildDemoScene()
+    /// <summary>
+    /// Opens whatever the user was last working on, instead of a throwaway placeholder scene:
+    ///   1. The last scene this project had open (remembered across sessions via ProjectSettings.json).
+    ///   2. If that's missing/deleted, the most recently modified .scene file under Assets/Scenes.
+    ///   3. If the project has no scenes at all yet (a brand new project), create one and open that.
+    /// </summary>
+    private void InitializeStartupScene()
     {
-        var cameraObj = _state.EditScene.CreateGameObject("Main Camera");
-        cameraObj.AddComponent<Camera2D>();
+        if (_projectSettings.LastOpenedScenePath != null)
+        {
+            var lastPath = Path.Combine(_projectPath, _projectSettings.LastOpenedScenePath);
+            if (File.Exists(lastPath))
+            {
+                LoadScene(lastPath);
+                return;
+            }
+        }
 
-        var square = _state.EditScene.CreateGameObject("Square");
-        var renderer = square.AddComponent<SpriteRenderer>();
-        renderer.Color = new Color(90, 160, 235);
-        renderer.Size = new Vector2(120, 120);
+        var scenesFolder = _state.ScenesFolder; // creates Assets/Scenes if it doesn't exist yet
+        var existingScenes = Directory.GetFiles(scenesFolder, "*.scene", SearchOption.AllDirectories);
+
+        if (existingScenes.Length > 0)
+        {
+            var mostRecent = existingScenes.OrderByDescending(File.GetLastWriteTimeUtc).First();
+            LoadScene(mostRecent);
+            return;
+        }
+
+        // brand new project — no scenes anywhere yet, so create the very first one
+        var relativePath = _state.Assets.CreateScene(EditorState.ScenesRelativeFolder, "Main");
+        var fullPath = Path.Combine(_state.Assets.AssetsRoot, relativePath);
+        LoadScene(fullPath);
+    }
+
+    private void OnFileDrop(object? sender, FileDropEventArgs e)
+    {
+        var mouse = Mouse.GetState();
+        _pendingFileDrops.Enqueue((e.Files, new System.Numerics.Vector2(mouse.X, mouse.Y)));
     }
 
     protected override void Update(GameTime gameTime)
     {
         _state.Assets.ProcessPendingChanges();
+
+        // Keeps every SpriteRenderer.Texture pointed at a *currently valid* Texture2D. Without this, any
+        // asset re-import — the file watcher noticing a change, the Refresh button, or Refresh() being
+        // called after saving a scene/prefab — disposes and recreates Texture2D instances, and anything
+        // in the scene still holding the old (now-disposed) reference would render as black/garbage on
+        // the very next frame. Cheap enough to just do unconditionally every frame rather than trying to
+        // remember to call it after every single place that can trigger a reimport.
+        _state.Assets.ResolveSceneTextures(_state.EditScene);
+        if (_state.IsPlaying)
+            _state.Assets.ResolveSceneTextures(_state.PlayScene!);
+
+        ProcessFileDrops();
         HandleGlobalShortcuts();
+        UpdateWindowTitle();
 
         if (_state.IsPlaying)
             _state.ActiveScene.Update(gameTime);
 
         base.Update(gameTime);
+    }
+
+    private void UpdateWindowTitle()
+    {
+        var projectName = Path.GetFileName(_projectPath.TrimEnd(Path.DirectorySeparatorChar));
+        var sceneName = _state.CurrentScenePath != null
+            ? Path.GetFileNameWithoutExtension(_state.CurrentScenePath)
+            : _state.EditScene.Name;
+        var dirtyMark = _state.IsDirty ? " *" : "";
+
+        var title = $"MyEngine Editor — {projectName} — {sceneName}{dirtyMark}";
+        if (title == _lastWindowTitle) return;
+
+        Window.Title = title;
+        _lastWindowTitle = title;
     }
 
     /// <summary>Ctrl+Z / Ctrl+Y (and Ctrl+Shift+Z) for undo/redo, ignored while typing into a text field.</summary>
@@ -93,6 +168,51 @@ public class EditorApp : Game
         if (ImGui.IsKeyPressed(ImGuiKey.Z) && !io.KeyShift) _state.PerformUndo();
         else if (ImGui.IsKeyPressed(ImGuiKey.Y) || (ImGui.IsKeyPressed(ImGuiKey.Z) && io.KeyShift)) _state.PerformRedo();
     }
+
+    // ---------------------------------------------------------------- OS-level file drop
+
+    private void ProcessFileDrops()
+    {
+        while (_pendingFileDrops.TryDequeue(out var drop))
+            foreach (var file in drop.Files)
+                ImportDroppedFile(file, drop.ScreenPosition);
+    }
+
+    /// <summary>Imports a file dragged in from outside the app (e.g. the OS file manager) into the Content
+    /// Browser's current folder. If the drop landed on the Viewport specifically, also places a sprite
+    /// there immediately — matching the existing behavior for dragging an asset already inside the Content Browser.</summary>
+    private void ImportDroppedFile(string sourcePath, System.Numerics.Vector2 dropScreenPosition)
+    {
+        if (Directory.Exists(sourcePath))
+        {
+            _state.LogMessage($"Skipped '{Path.GetFileName(sourcePath)}' — drop image files individually, not whole folders.");
+            return;
+        }
+        if (!File.Exists(sourcePath)) return;
+
+        try
+        {
+            var relative = _state.Assets.ImportExternalFile(sourcePath, _state.ContentBrowserFolder);
+            _state.LogMessage($"Imported '{Path.GetFileName(sourcePath)}' into Assets/{_state.ContentBrowserFolder}.");
+
+            if (IsOverViewport(dropScreenPosition))
+            {
+                var local = dropScreenPosition - _lastViewportMin;
+                var worldPos = Vector2.Transform(new Vector2(local.X, local.Y), Matrix.Invert(_currentViewMatrix));
+                AssetDropHandler.CreateSpriteFromTexture(_state, relative, worldPos);
+            }
+        }
+        catch (Exception ex)
+        {
+            _state.LogMessage($"ERROR importing '{Path.GetFileName(sourcePath)}': {ex.Message}");
+        }
+    }
+
+    private bool IsOverViewport(System.Numerics.Vector2 screenPos) =>
+        screenPos.X >= _lastViewportMin.X && screenPos.X <= _lastViewportMax.X &&
+        screenPos.Y >= _lastViewportMin.Y && screenPos.Y <= _lastViewportMax.Y;
+
+    // ---------------------------------------------------------------- draw
 
     protected override void Draw(GameTime gameTime)
     {
@@ -173,60 +293,135 @@ public class EditorApp : Game
 
         var contentBrowserResult = ContentBrowserPanel.Draw(_state);
         if (contentBrowserResult.SceneToOpen != null)
-            LoadScene(contentBrowserResult.SceneToOpen);
+            RequestLoadScene(contentBrowserResult.SceneToOpen);
 
         var viewportResult = ViewportPanel.Draw(_state, _sceneTextureId);
         _requestedViewportSize = viewportResult.Size;
+        _lastViewportMin = viewportResult.ImageScreenMin;
+        _lastViewportMax = viewportResult.ImageScreenMax;
+
         if (viewportResult.RequestedSceneSwitch != null)
-            LoadScene(viewportResult.RequestedSceneSwitch);
+            RequestLoadScene(viewportResult.RequestedSceneSwitch);
 
         _gizmo.Update(_state, _currentViewMatrix, _currentZoom, viewportResult.ImageScreenMin, viewportResult.IsHovered);
         HandleViewportDrop(viewportResult);
+
+        DrawUnsavedChangesModal();
     }
 
-    /// <summary>Converts a texture/prefab dropped on the Viewport into a placed GameObject at the drop's world position.</summary>
+    /// <summary>Converts a texture/prefab dropped on the Viewport (from within the app, e.g. the Content Browser)
+    /// into a placed GameObject at the drop's world position.</summary>
     private void HandleViewportDrop(ViewportResult vr)
     {
         if (vr.DroppedTexturePath == null && vr.DroppedPrefabPath == null) return;
 
         var localPoint = vr.DropScreenPosition - vr.ImageScreenMin;
-        var localXna = new Vector2(localPoint.X, localPoint.Y);
-        var worldPos = Vector2.Transform(localXna, Matrix.Invert(_currentViewMatrix));
+        var worldPos = Vector2.Transform(new Vector2(localPoint.X, localPoint.Y), Matrix.Invert(_currentViewMatrix));
 
         if (vr.DroppedTexturePath != null)
-        {
-            var go = _state.ActiveScene.CreateGameObject(Path.GetFileNameWithoutExtension(vr.DroppedTexturePath));
-            var sr = go.AddComponent<SpriteRenderer>();
-            sr.TexturePath = vr.DroppedTexturePath;
-            sr.Texture = _state.Assets.GetTexture(vr.DroppedTexturePath);
-            go.Transform.Position = worldPos;
-            _state.SelectGameObject(go);
-            _state.LogMessage($"Placed sprite '{go.Name}'.");
-
-            var command = CreateDeleteGameObjectCommand.ForCreate(
-                $"Create {go.Name}", _state.ActiveScene, _state.Assets.ResolveSceneTextures, go);
-            _state.Undo.Push(command);
-        }
+            AssetDropHandler.CreateSpriteFromTexture(_state, vr.DroppedTexturePath, worldPos);
         else if (vr.DroppedPrefabPath != null)
+            AssetDropHandler.InstantiatePrefab(_state, vr.DroppedPrefabPath, worldPos);
+    }
+
+    // ---------------------------------------------------------------- scene lifecycle (dirty-aware)
+
+    /// <summary>Requests loading <paramref name="path"/>. A no-op if it's already the open scene (avoids
+    /// silently discarding in-memory edits for nothing, e.g. double-clicking the scene you're already in).
+    /// If there are unsaved changes to a *different* scene, asks for confirmation first.</summary>
+    private void RequestLoadScene(string path)
+    {
+        if (string.Equals(path, _state.CurrentScenePath, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        var sceneName = Path.GetFileNameWithoutExtension(path);
+        RequestDestructiveAction($"open '{sceneName}'", () => LoadScene(path));
+    }
+
+    private void RequestNewScene()
+    {
+        RequestDestructiveAction("start a new scene", () =>
         {
-            var asset = _state.Assets.Find(vr.DroppedPrefabPath);
-            if (asset == null) return;
+            _state.EditScene = new Scene("Untitled Scene");
+            _state.CurrentScenePath = null;
+            _state.SelectGameObject(null);
+            _state.Undo.Clear();
+            _state.MarkClean();
+            _state.LogMessage("Created new scene.");
+        });
+    }
 
-            try
-            {
-                var root = PrefabSerializer.Instantiate(asset.FullPath, _state.ActiveScene, worldPosition: worldPos);
-                _state.SelectGameObject(root);
-                _state.LogMessage($"Instantiated prefab '{root.Name}'.");
-
-                var command = CreateDeleteGameObjectCommand.ForCreate(
-                    $"Instantiate {root.Name}", _state.ActiveScene, _state.Assets.ResolveSceneTextures, root);
-                _state.Undo.Push(command);
-            }
-            catch (Exception ex)
-            {
-                _state.LogMessage($"ERROR instantiating prefab: {ex.Message}");
-            }
+    /// <summary>Runs <paramref name="action"/> immediately if the current scene has no unsaved changes;
+    /// otherwise holds it so DrawUnsavedChangesModal shows a confirmation next frame — a switch can never
+    /// silently throw away edits the user hasn't saved yet.</summary>
+    private void RequestDestructiveAction(string description, Action action)
+    {
+        if (!_state.IsDirty)
+        {
+            action();
+            return;
         }
+
+        _pendingDestructiveAction = action;
+        _pendingDestructiveDescription = description;
+    }
+
+    /// <summary>
+    /// Deliberately a plain conditional window rather than ImGui.OpenPopup/BeginPopupModal: those are
+    /// scoped by the ID stack active at the moment OpenPopup is called, and RequestDestructiveAction can
+    /// be triggered from deep inside a File-menu click while this is drawn from BuildUI's top level —
+    /// two different ID-stack contexts that could hash to different popup IDs and silently never open.
+    /// A flag-driven window has no such risk: it just checks _pendingDestructiveAction every frame.
+    /// </summary>
+    private void DrawUnsavedChangesModal()
+    {
+        if (_pendingDestructiveAction == null) return;
+
+        var viewport = ImGui.GetMainViewport();
+        var center = new System.Numerics.Vector2(
+            viewport.Pos.X + viewport.Size.X * 0.5f,
+            viewport.Pos.Y + viewport.Size.Y * 0.5f);
+        ImGui.SetNextWindowPos(center, ImGuiCond.Always, new System.Numerics.Vector2(0.5f, 0.5f));
+
+        bool open = true;
+        const ImGuiWindowFlags flags = ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse
+            | ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoDocking;
+
+        ImGui.Begin("Unsaved Changes", ref open, flags);
+
+        ImGui.Text($"'{_state.EditScene.Name}' has unsaved changes.");
+        ImGui.Text($"Continuing to {_pendingDestructiveDescription} will discard them.");
+        ImGui.Spacing();
+
+        if (ImGui.Button("Save & Continue", new System.Numerics.Vector2(160, 0)))
+        {
+            if (_state.CurrentScenePath != null)
+            {
+                SaveScene(_state.CurrentScenePath);
+            }
+            else
+            {
+                var path = Path.Combine(_state.ScenesFolder, $"{_state.EditScene.Name}.scene");
+                SaveScene(path);
+            }
+            RunPendingDestructiveAction();
+        }
+
+        ImGui.SameLine();
+        if (ImGui.Button("Discard & Continue", new System.Numerics.Vector2(160, 0)))
+            RunPendingDestructiveAction();
+
+        ImGui.SameLine();
+        if (ImGui.Button("Cancel", new System.Numerics.Vector2(100, 0)) || !open)
+            _pendingDestructiveAction = null;
+
+        ImGui.End();
+    }
+
+    private void RunPendingDestructiveAction()
+    {
+        _pendingDestructiveAction?.Invoke();
+        _pendingDestructiveAction = null;
     }
 
     private void DrawMainMenuBar()
@@ -238,13 +433,7 @@ public class EditorApp : Game
         if (ImGui.BeginMenu("File"))
         {
             if (ImGui.MenuItem("New Scene", string.Empty, false, editingAllowed))
-            {
-                _state.EditScene = new Scene("Untitled Scene");
-                _state.CurrentScenePath = null;
-                _state.SelectGameObject(null);
-                _state.Undo.Clear();
-                _state.LogMessage("Created new scene.");
-            }
+                RequestNewScene();
 
             if (ImGui.MenuItem("Save Scene", string.Empty, false, editingAllowed && _state.CurrentScenePath != null))
                 SaveScene(_state.CurrentScenePath!);
@@ -257,16 +446,19 @@ public class EditorApp : Game
 
             if (ImGui.BeginMenu("Open Scene", editingAllowed))
             {
+                // Recursive: scenes always live under Assets/Scenes, but the user can organize them into
+                // subfolders in there (e.g. Assets/Scenes/Levels/), and this should still find those.
                 var files = Directory.Exists(_state.ScenesFolder)
-                    ? Directory.GetFiles(_state.ScenesFolder, "*.scene")
+                    ? Directory.GetFiles(_state.ScenesFolder, "*.scene", SearchOption.AllDirectories)
                     : Array.Empty<string>();
 
                 if (files.Length == 0) ImGui.TextDisabled("(no scenes saved yet)");
 
                 foreach (var file in files)
                 {
-                    if (ImGui.MenuItem(Path.GetFileNameWithoutExtension(file)))
-                        LoadScene(file);
+                    var label = Path.GetRelativePath(_state.ScenesFolder, file);
+                    if (ImGui.MenuItem(label))
+                        RequestLoadScene(file);
                 }
                 ImGui.EndMenu();
             }
@@ -299,6 +491,8 @@ public class EditorApp : Game
             _state.CurrentScenePath = path;
             _state.RegisterSceneTab(path);
             _state.Assets.Refresh();
+            _state.MarkClean();
+            RememberLastOpenedScene(path);
             _state.LogMessage($"Saved scene to {path}");
         }
         catch (Exception ex)
@@ -318,6 +512,8 @@ public class EditorApp : Game
             _state.RegisterSceneTab(path);
             _state.SelectGameObject(null);
             _state.Undo.Clear();
+            _state.MarkClean();
+            RememberLastOpenedScene(path);
             _state.LogMessage($"Loaded scene from {path}");
         }
         catch (Exception ex)
@@ -326,8 +522,17 @@ public class EditorApp : Game
         }
     }
 
+    /// <summary>Records which scene is open right now so the next launch of this project resumes here
+    /// instead of showing a placeholder.</summary>
+    private void RememberLastOpenedScene(string absolutePath)
+    {
+        _projectSettings.LastOpenedScenePath = Path.GetRelativePath(_projectPath, absolutePath);
+        _projectSettings.Save(_projectPath);
+    }
+
     protected override void UnloadContent()
     {
+        Window.FileDrop -= OnFileDrop;
         _state?.Assets.Dispose();
         base.UnloadContent();
     }

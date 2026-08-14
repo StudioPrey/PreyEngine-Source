@@ -1,6 +1,6 @@
 # PreyEngine Source (Community Edition)
 
-**Version: STS 11.1**
+**Version: STS 11.2.1**
 
 **PreyEngine** is a custom 2D game engine built with **MonoGame** + **ImGui.NET**.  
 Created and maintained by **Arian Shahmohammadi**, founder of **Easyprey Studio**.
@@ -15,7 +15,25 @@ It is published under the MIT License with a mandatory attribution requirement.
 
 ## About
 
-PreyEngine is an Iranian-made 2D game engine designed around a clean C# architecture and a Unity-like workflow. This STS 11.1 snapshot includes a usable editor, scene system, prefabs, and a modern Avalonia launcher.
+PreyEngine is an Iranian-made 2D game engine designed around a clean C# architecture and a Unity-like workflow. This STS 11.2.1 snapshot includes a usable editor, scene system, prefabs, a modern Avalonia launcher, and critical stability fixes over the previous community release.
+
+---
+
+## What's New in STS 11.2.1
+
+### Critical Bug Fix
+- **Transform serialization fixed**  
+  Position, Rotation, and Scale were previously stored as fields instead of properties in `GameObjectData`. Combined with `IncludeFields = false` on the JSON serializer, this meant transforms were **never saved** to `.scene` files and always reloaded as defaults `(0, 0)` / scale `1`.  
+  This has been fully corrected. Existing scenes saved before this version must have object positions re-placed once.
+
+### Stability & Editor Improvements
+- Removed the fake default GameObject that appeared on editor startup
+- Last opened scene is now remembered across sessions via `ProjectSettings.json`
+- Fixed Viewport going black after Save Scene / Save As Prefab
+- Fixed incorrect scene path handling and duplicate scene folders
+- Fixed drag-and-drop from File Explorer → Content Browser
+- Fixed drag-and-drop from Content Browser → Hierarchy
+- Shared drop logic extracted into `AssetDropHandler` for consistency
 
 ---
 
@@ -30,12 +48,12 @@ PreyEngine is an Iranian-made 2D game engine designed around a clean C# architec
 
 ---
 
-## Features (STS 11.1)
+## Features (STS 11.2.1)
 
 ### Core
 - Entity-Component-System (ECS) architecture
 - `GameObject`, `Component`, `Transform`
-- Scene system with JSON serialization
+- Scene system with JSON serialization (**Transform save fully working**)
 - Prefab system (create, instantiate, Apply / Revert / Unlink)
 - SpriteRenderer
 - Camera2D with follow target, smoothing and offset
@@ -52,7 +70,8 @@ PreyEngine is an Iranian-made 2D game engine designed around a clean C# architec
 - Adaptive grid
 - Scene tabs
 - Live asset import (PNG, JPG, BMP) via FileSystemWatcher
-- Drag & drop support
+- Drag & drop support (File Explorer + Content Browser + Hierarchy)
+- ProjectSettings (remembers last opened scene)
 
 ### Launcher
 - Modern Avalonia UI
@@ -61,7 +80,7 @@ PreyEngine is an Iranian-made 2D game engine designed around a clean C# architec
 - Editor version manager
 - Real folder picker
 
-### Not included in STS 11.1
+### Not included in STS 11.2.1
 - Scripting system
 - Input System
 - Later editor and runtime improvements present in newer closed versions
@@ -71,7 +90,7 @@ PreyEngine is an Iranian-made 2D game engine designed around a clean C# architec
 ## Project Structure
 
 ```
-PreyEngine-source/
+PreyEngine-Source/
 ├── src/
 │   ├── MyEngine.Core/              # Engine core
 │   ├── MyEngine.Editor/            # Editor (ImGui + MonoGame)
@@ -97,8 +116,8 @@ PreyEngine-source/
 ## Getting Started
 
 ```bash
-git clone https://github.com/StudioPrey/PreyEngine-source.git
-cd PreyEngine-source
+git clone https://github.com/StudioPrey/PreyEngine-Source.git
+cd PreyEngine-Source
 
 dotnet restore
 dotnet build
@@ -136,7 +155,7 @@ For the latest version, commercial inquiries, or collaboration, please contact E
 
 ## Disclaimer
 
-This is a delayed community snapshot (STS 11.1).  
+This is a delayed community snapshot (STS 11.2.1).  
 It is provided as-is. The closed-source mainline continues active development and contains features and fixes not present in this release.
 
 Thank you for your interest in PreyEngine.
