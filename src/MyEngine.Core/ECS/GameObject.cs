@@ -59,6 +59,22 @@ public sealed class GameObject
         return component;
     }
 
+    /// <summary>
+    /// Non-generic counterpart to AddComponent&lt;T&gt;(), for when the component type is only known at
+    /// runtime — e.g. a user script compiled dynamically via Reflection, whose Type can't satisfy a
+    /// compile-time generic constraint. <paramref name="componentType"/> must be a concrete (non-abstract)
+    /// Component subclass with a public parameterless constructor.
+    /// </summary>
+    public Component AddComponent(Type componentType)
+    {
+        if (!typeof(Component).IsAssignableFrom(componentType))
+            throw new ArgumentException($"'{componentType.Name}' is not a Component.", nameof(componentType));
+
+        var component = (Component)Activator.CreateInstance(componentType)!;
+        AddComponentInternal(component);
+        return component;
+    }
+
     private void AddComponentInternal(Component component)
     {
         component.Owner = this;

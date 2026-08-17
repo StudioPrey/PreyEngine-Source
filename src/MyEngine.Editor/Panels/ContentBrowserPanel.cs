@@ -111,21 +111,27 @@ public static class ContentBrowserPanel
 
         if (ImGui.BeginMenu("Create"))
         {
-            if (ImGui.MenuItem("Folder")) BeginCreate(state, isFolder: true);
-            if (ImGui.MenuItem("Scene")) BeginCreate(state, isFolder: false);
+            if (ImGui.MenuItem("Folder")) BeginCreate(state, PendingCreateKind.Folder);
+            if (ImGui.MenuItem("Scene")) BeginCreate(state, PendingCreateKind.Scene);
+            if (ImGui.MenuItem("Script")) BeginCreate(state, PendingCreateKind.Script);
             ImGui.EndMenu();
         }
         if (ImGui.MenuItem("Refresh")) state.Assets.Refresh();
         ImGui.EndPopup();
     }
 
-    private static void BeginCreate(EditorState state, bool isFolder)
+    private static void BeginCreate(EditorState state, PendingCreateKind kind)
     {
         state.PendingCreate = new PendingCreateItem
         {
-            IsFolder = isFolder,
-            Type = isFolder ? AssetType.Unknown : AssetType.Scene,
-            NameBuffer = isFolder ? "New Folder" : "New Scene",
+            Kind = kind,
+            NameBuffer = kind switch
+            {
+                PendingCreateKind.Folder => "New Folder",
+                PendingCreateKind.Scene => "New Scene",
+                PendingCreateKind.Script => "NewScript",
+                _ => "New",
+            },
             FocusRequested = true,
         };
     }
@@ -174,7 +180,13 @@ public static class ContentBrowserPanel
         }
         else
         {
-            string label = asset.Type switch { AssetType.Prefab => "[Prefab]", AssetType.Scene => "[Scene]", _ => "[?]" };
+            string label = asset.Type switch
+            {
+                AssetType.Prefab => "[Prefab]",
+                AssetType.Scene => "[Scene]",
+                AssetType.Script => "[Script]",
+                _ => "[?]",
+            };
             if (ImGui.Button(label, new Vector2(ThumbnailSize, ThumbnailSize)))
                 state.SelectAsset(asset);
         }
@@ -204,6 +216,14 @@ public static class ContentBrowserPanel
             if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
                 openScene = asset.FullPath;
         }
+        else if (asset.Type == AssetType.Script)
+        {
+            if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+            {
+                var error = ExternalEditorLauncher.Open(asset.FullPath);
+                if (error != null) state.LogMessage($"ERROR: {error}");
+            }
+        }
 
         ImGui.TextWrapped(Truncate(asset.DisplayName, 10));
         ImGui.EndGroup();
@@ -215,7 +235,14 @@ public static class ContentBrowserPanel
         var pending = state.PendingCreate!;
         ImGui.BeginGroup();
 
-        ImGui.Button(pending.IsFolder ? "[Folder]" : "[Scene]", new Vector2(ThumbnailSize, ThumbnailSize));
+        string label = pending.Kind switch
+        {
+            PendingCreateKind.Folder => "[Folder]",
+            PendingCreateKind.Scene => "[Scene]",
+            PendingCreateKind.Script => "[Script]",
+            _ => "[?]",
+        };
+        ImGui.Button(label, new Vector2(ThumbnailSize, ThumbnailSize));
 
         ImGui.SetNextItemWidth(ThumbnailSize);
         if (pending.FocusRequested)
@@ -243,19 +270,27 @@ public static class ContentBrowserPanel
 
         try
         {
-            if (pending.IsFolder)
+            switch (pending.Kind)
             {
-                state.Assets.CreateFolder(state.ContentBrowserFolder, name);
-                state.LogMessage($"Created folder '{name}'.");
-            }
-            else
-            {
-                // Scenes always live in Assets/Scenes — never wherever the browser happens to be pointed —
-                // so "File > Open Scene" (which only looks there) can always find every scene that exists,
-                // and there's only ever one place a new scene can end up.
-                state.Assets.CreateScene(EditorState.ScenesRelativeFolder, name);
-                state.ContentBrowserFolder = EditorState.ScenesRelativeFolder;
-                state.LogMessage($"Created scene '{name}' in Assets/{EditorState.ScenesRelativeFolder}.");
+                case PendingCreateKind.Folder:
+                    state.Assets.CreateFolder(state.ContentBrowserFolder, name);
+                    state.LogMessage($"Created folder '{name}'.");
+                    break;
+
+                case PendingCreateKind.Scene:
+                    // Scenes always live in Assets/Scenes — never wherever the browser happens to be pointed —
+                    // so "File > Open Scene" (which only looks there) can always find every scene that exists,
+                    // and there's only ever one place a new scene can end up.
+                    state.Assets.CreateScene(EditorState.ScenesRelativeFolder, name);
+                    state.ContentBrowserFolder = EditorState.ScenesRelativeFolder;
+                    state.LogMessage($"Created scene '{name}' in Assets/{EditorState.ScenesRelativeFolder}.");
+                    break;
+
+                case PendingCreateKind.Script:
+                    var relativePath = state.Assets.CreateScript(state.ContentBrowserFolder, name);
+                    state.LogMessage($"Created script '{relativePath}'. Compiling…");
+                    state.RequestScriptCompile();
+                    break;
             }
         }
         catch (Exception ex)

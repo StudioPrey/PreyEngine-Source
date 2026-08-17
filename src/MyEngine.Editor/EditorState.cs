@@ -1,4 +1,5 @@
 using MyEngine.Core.ECS;
+using MyEngine.Core.Scripting;
 using MyEngine.Core.SceneSystem;
 using MyEngine.Editor.UndoSystem;
 
@@ -7,12 +8,13 @@ namespace MyEngine.Editor;
 public enum GizmoMode { Move, Rotate, Scale }
 public enum GizmoSpace { World, Local }
 
+public enum PendingCreateKind { Folder, Scene, Script }
+
 /// <summary>Transient "type a name for the thing you just asked to create" state for the Content Browser,
 /// mirroring the inline-rename box Unity shows immediately after Assets > Create > ...</summary>
 public sealed class PendingCreateItem
 {
-    public required AssetType Type { get; init; } // Scene or a folder (folder uses Unknown — see IsFolder)
-    public required bool IsFolder { get; init; }
+    public required PendingCreateKind Kind { get; init; }
     public string NameBuffer = "";
     public bool FocusRequested = true;
 }
@@ -66,6 +68,14 @@ public sealed class EditorState
     public List<SceneTab> SceneTabs { get; } = new();
 
     public List<string> Log { get; } = new();
+
+    /// <summary>Set by anything that just changed a script file (Content Browser's Create Script, or the
+    /// editor window regaining focus after external edits) and cleared by EditorApp once it has picked up
+    /// and started handling the recompile.</summary>
+    public bool ScriptCompileRequested { get; private set; }
+
+    public void RequestScriptCompile() => ScriptCompileRequested = true;
+    public void ClearScriptCompileRequest() => ScriptCompileRequested = false;
 
     /// <summary>True if EditScene has changes that haven't been saved to disk. Tracked automatically —
     /// every scene-mutating action in this editor flows through the Undo stack, so listening to its
@@ -138,6 +148,7 @@ public sealed class EditorState
 
         // undo history from edit mode doesn't apply to the throwaway play clone (different Scene instance)
         Undo.Clear();
+        Time.Reset();
 
         LogMessage("▶ Entered Play Mode.");
     }

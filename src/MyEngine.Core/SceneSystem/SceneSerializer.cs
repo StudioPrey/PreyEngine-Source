@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Microsoft.Xna.Framework;
 using MyEngine.Core.Components;
 using MyEngine.Core.ECS;
+using MyEngine.Core.Scripting;
 
 namespace MyEngine.Core.SceneSystem;
 
@@ -34,6 +35,7 @@ public sealed class GameObjectData
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(SpriteRendererData), "SpriteRenderer")]
 [JsonDerivedType(typeof(Camera2DData), "Camera2D")]
+[JsonDerivedType(typeof(ScriptComponentData), "Script")]
 public abstract class ComponentData { }
 
 public sealed class SpriteRendererData : ComponentData
@@ -56,6 +58,19 @@ public sealed class Camera2DData : ComponentData
     public float FollowSmoothing { get; set; } = 0.15f;
     public float FollowOffsetX { get; set; }
     public float FollowOffsetY { get; set; }
+}
+
+/// <summary>
+/// Generic container for a user script component. Core doesn't know user script classes (they're
+/// compiled per-project, at runtime) so this can't be one DTO per script the way SpriteRendererData is
+/// one DTO for SpriteRenderer — instead it carries the script's class name (resolved back to a compiled
+/// Type via ScriptRegistry) and a name-to-string map of its public field values.
+/// See ScriptSerialization for what field types are actually supported in this first version.
+/// </summary>
+public sealed class ScriptComponentData : ComponentData
+{
+    public string TypeName { get; set; } = "";
+    public Dictionary<string, string> Fields { get; set; } = new();
 }
 
 /// <summary>
@@ -119,6 +134,9 @@ public static class SceneSerializer
                         FollowOffsetY = cam.FollowOffset.Y,
                     });
                     break;
+                case Script script:
+                    data.Components.Add(ScriptSerialization.Capture(script));
+                    break;
                 // Transform is implicit and already captured above; skip it here.
             }
         }
@@ -143,6 +161,12 @@ public static class SceneSerializer
                 camera.IsActive = cam.IsActive;
                 camera.FollowSmoothing = cam.FollowSmoothing;
                 camera.FollowOffset = new Vector2(cam.FollowOffsetX, cam.FollowOffsetY);
+                break;
+            case ScriptComponentData scriptData:
+                var scriptType = ScriptRegistry.Find(scriptData.TypeName);
+                if (scriptType == null) break; // "missing script" — skip rather than fail the whole load
+                var script = (Script)go.AddComponent(scriptType);
+                ScriptSerialization.Apply(script, scriptData);
                 break;
         }
     }

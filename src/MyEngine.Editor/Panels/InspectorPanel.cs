@@ -1,9 +1,11 @@
 using System.Numerics;
+using System.Reflection;
 using ImGuiNET;
 using Microsoft.Xna.Framework.Graphics;
 using MyEngine.Core.Components;
 using MyEngine.Core.ECS;
 using MyEngine.Core.SceneSystem;
+using MyEngine.Core.Scripting;
 using MyEngine.Editor.UndoSystem;
 
 namespace MyEngine.Editor.Panels;
@@ -15,7 +17,7 @@ public static class InspectorPanel
         ImGui.Begin("Inspector");
 
         if (state.SelectedAsset != null)
-            DrawAssetInspector(state.SelectedAsset);
+            DrawAssetInspector(state.SelectedAsset, state);
         else if (state.Selected != null)
             DrawGameObjectInspector(state);
         else
@@ -26,7 +28,7 @@ public static class InspectorPanel
 
     // ---------------------------------------------------------------- asset inspector
 
-    private static void DrawAssetInspector(AssetInfo asset)
+    private static void DrawAssetInspector(AssetInfo asset, EditorState state)
     {
         ImGui.Text(asset.DisplayName);
         ImGui.TextDisabled(asset.RelativePath);
@@ -47,6 +49,12 @@ public static class InspectorPanel
         else if (asset.Type == AssetType.Scene)
         {
             ImGui.TextDisabled("Scene asset — double-click in the Content Browser to open it.");
+        }
+        else if (asset.Type == AssetType.Script)
+        {
+            DrawOpenInEditorButton(asset.FullPath, state);
+            ImGui.Spacing();
+            DrawReadOnlySource(asset.FullPath);
         }
     }
 
@@ -104,6 +112,9 @@ public static class InspectorPanel
                 case Camera2D cam:
                     DrawCamera(cam, state);
                     break;
+                case Script script:
+                    DrawScript(script, state);
+                    break;
             }
         }
 
@@ -117,6 +128,23 @@ public static class InspectorPanel
                 AddComponent<SpriteRenderer>(go, state, "Add Sprite Renderer");
             if (go.GetComponent<Camera2D>() == null && ImGui.MenuItem("Camera 2D"))
                 AddComponent<Camera2D>(go, state, "Add Camera 2D");
+
+            var scriptTypes = ScriptRegistry.AllTypes.OrderBy(t => t.Name).ToArray();
+            if (scriptTypes.Length > 0)
+            {
+                ImGui.Separator();
+                if (ImGui.BeginMenu("Scripts"))
+                {
+                    foreach (var scriptType in scriptTypes)
+                    {
+                        bool alreadyAdded = go.Components.Any(c => c.GetType() == scriptType);
+                        if (!alreadyAdded && ImGui.MenuItem(scriptType.Name))
+                            AddScriptComponent(go, state, scriptType);
+                    }
+                    ImGui.EndMenu();
+                }
+            }
+
             ImGui.EndPopup();
         }
     }
@@ -124,6 +152,12 @@ public static class InspectorPanel
     private static void AddComponent<T>(GameObject go, EditorState state, string description) where T : Component, new()
     {
         var command = AddRemoveComponentCommand<T>.AddNow(description, go);
+        state.Undo.Push(command);
+    }
+
+    private static void AddScriptComponent(GameObject go, EditorState state, Type scriptType)
+    {
+        var command = AddScriptComponentCommand.AddNow($"Add {scriptType.Name}", go, scriptType);
         state.Undo.Push(command);
     }
 
@@ -285,5 +319,115 @@ public static class InspectorPanel
         if (old == target) return;
         cam.FollowTarget = target;
         undo.Push(new PropertyChangeCommand<GameObject?>("Change Follow Target", v => cam.FollowTarget = v, old, target));
+    }
+
+    // ---------------------------------------------------------------- script components
+
+    private static void DrawScript(Script script, EditorState state)
+    {
+        var type = script.GetType();
+        if (!ImGui.CollapsingHeader($"{type.Name} (Script)", ImGuiTreeNodeFlags.DefaultOpen)) return;
+        ImGui.PushID(type.Name);
+
+        var fields = ScriptSerialization.GetEditableFields(type).ToArray();
+        if (fields.Length == 0)
+            ImGui.TextDisabled("No exposed fields.");
+        else
+            foreach (var field in fields)
+                DrawScriptField(script, field, state.Undo);
+
+        ImGui.Spacing();
+
+        var asset = state.Assets.FindScriptAsset(type.Name);
+        if (asset != null)
+        {
+            DrawOpenInEditorButton(asset.FullPath, state);
+            ImGui.Spacing();
+            DrawReadOnlySource(asset.FullPath);
+        }
+        else
+        {
+            ImGui.TextDisabled("(source file not found — was it renamed or deleted?)");
+        }
+
+        ImGui.PopID();
+    }
+
+    /// <summary>Renders one exposed field with the ImGui widget matching its type, wired into Undo the
+    /// same way every other Inspector field is. Supported types must match ScriptSerialization exactly —
+    /// they're read from the same place so the Inspector and scene-persistence never disagree about which
+    /// fields are exposed.</summary>
+    private static void DrawScriptField(Script script, FieldInfo field, UndoStack undo)
+    {
+        string label = field.Name;
+
+        if (field.FieldType == typeof(float))
+        {
+            float before = (float)(field.GetValue(script) ?? 0f);
+            float v = before;
+            if (ImGui.DragFloat(label, ref v, 0.1f)) field.SetValue(script, v);
+            ImGuiUndo.Track(undo, $"Change {field.Name}", before, (float)field.GetValue(script)!, x => field.SetValue(script, x));
+        }
+        else if (field.FieldType == typeof(int))
+        {
+            int before = (int)(field.GetValue(script) ?? 0);
+            int v = before;
+            if (ImGui.DragInt(label, ref v)) field.SetValue(script, v);
+            ImGuiUndo.Track(undo, $"Change {field.Name}", before, (int)field.GetValue(script)!, x => field.SetValue(script, x));
+        }
+        else if (field.FieldType == typeof(bool))
+        {
+            bool before = (bool)(field.GetValue(script) ?? false);
+            bool v = before;
+            if (ImGui.Checkbox(label, ref v)) field.SetValue(script, v);
+            ImGuiUndo.Track(undo, $"Change {field.Name}", before, (bool)field.GetValue(script)!, x => field.SetValue(script, x));
+        }
+        else if (field.FieldType == typeof(string))
+        {
+            string before = (string)(field.GetValue(script) ?? "");
+            string v = before;
+            if (ImGui.InputText(label, ref v, 512)) field.SetValue(script, v);
+            ImGuiUndo.Track(undo, $"Change {field.Name}", before, (string)(field.GetValue(script) ?? ""), x => field.SetValue(script, x));
+        }
+    }
+
+    private static void DrawOpenInEditorButton(string filePath, EditorState state)
+    {
+        if (!ImGui.SmallButton("Open in Editor")) return;
+        var error = ExternalEditorLauncher.Open(filePath);
+        if (error != null) state.LogMessage($"ERROR: {error}");
+    }
+
+    // Cached so the Inspector doesn't re-read a script's source file from disk every single frame it's
+    // shown — invalidated automatically whenever the file's last-write-time changes (e.g. saved in VS Code),
+    // so the preview stays live without needing an explicit refresh.
+    private static readonly Dictionary<string, (string Content, DateTime WriteTimeUtc)> SourceCache = new();
+
+    private static void DrawReadOnlySource(string filePath)
+    {
+        string source;
+        try
+        {
+            var writeTime = File.GetLastWriteTimeUtc(filePath);
+            if (SourceCache.TryGetValue(filePath, out var cached) && cached.WriteTimeUtc == writeTime)
+            {
+                source = cached.Content;
+            }
+            else
+            {
+                source = File.ReadAllText(filePath);
+                SourceCache[filePath] = (source, writeTime);
+            }
+        }
+        catch (Exception ex)
+        {
+            ImGui.TextDisabled($"(could not read file: {ex.Message})");
+            return;
+        }
+
+        ImGui.TextDisabled("Source (read-only):");
+        ImGui.InputTextMultiline(
+            "##source", ref source, (uint)(source.Length + 1),
+            new Vector2(-1, 220), ImGuiInputTextFlags.ReadOnly);
     }
 }

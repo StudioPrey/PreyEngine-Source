@@ -6,8 +6,11 @@ using Microsoft.Xna.Framework.Input;
 using MyEngine.Core.Components;
 using MyEngine.Core.Rendering;
 using MyEngine.Core.SceneSystem;
+using MyEngine.Core.Scripting;
 using MyEngine.Editor.Panels;
+using MyEngine.Editor.Scripting;
 using MyEngine.EditorFramework;
+using CoreInput = MyEngine.Core.InputSystem.Input;
 
 namespace MyEngine.Editor;
 
@@ -18,6 +21,7 @@ public class EditorApp : Game
     private ImGuiRenderer _imGui = null!;
     private EditorState _state = null!;
     private readonly GizmoSystem _gizmo = new();
+    private CameraIconRenderer _cameraIcons = null!;
     private ProjectSettings _projectSettings = null!;
 
     private RenderTarget2D? _sceneTarget;
@@ -44,6 +48,14 @@ public class EditorApp : Game
 
     private string _lastWindowTitle = "";
 
+    // Script compilation runs on a background thread (Roslyn compiles are CPU-only, no GraphicsDevice/ImGui
+    // touching, so this is safe) so the "Compiling scripts..." overlay actually gets a chance to render
+    // instead of the whole frame blocking until it's done. Only one compile runs at a time; a request that
+    // arrives while one is already in flight just chains its callback onto the one currently running.
+    private bool _isCompiling;
+    private readonly ConcurrentQueue<ScriptCompilationResult> _pendingCompileResults = new();
+    private Action? _onCompileComplete;
+
     public EditorApp(string projectPath)
     {
         _projectPath = projectPath;
@@ -64,6 +76,7 @@ public class EditorApp : Game
 
         _imGui = new ImGuiRenderer(this);
         _imGui.RebuildFontAtlas();
+        _cameraIcons = new CameraIconRenderer(GraphicsDevice, _imGui);
 
         var assets = new AssetDatabase(_projectPath, GraphicsDevice, _imGui);
         assets.Refresh();
@@ -73,8 +86,15 @@ public class EditorApp : Game
 
         Window.FileDrop += OnFileDrop;
 
-        InitializeStartupScene();
+        // Unity-style: refocusing the Editor after editing scripts externally (VS Code, Visual Studio)
+        // recompiles automatically, so "alt-tab back and hit Play" always runs the latest code.
+        Activated += (_, _) => TriggerScriptCompilation();
+
         _state.LogMessage("Editor started. Welcome to MyEngine!");
+
+        // Scripts must be compiled (so ScriptRegistry knows about them) *before* the startup scene loads —
+        // otherwise any GameObject with a script component would silently skip it as a "missing script".
+        TriggerScriptCompilation(onComplete: InitializeStartupScene);
     }
 
     /// <summary>
@@ -119,6 +139,8 @@ public class EditorApp : Game
 
     protected override void Update(GameTime gameTime)
     {
+        ProcessCompileResults();
+
         _state.Assets.ProcessPendingChanges();
 
         // Keeps every SpriteRenderer.Texture pointed at a *currently valid* Texture2D. Without this, any
@@ -131,14 +153,79 @@ public class EditorApp : Game
         if (_state.IsPlaying)
             _state.Assets.ResolveSceneTextures(_state.PlayScene!);
 
+        if (_state.ScriptCompileRequested)
+        {
+            _state.ClearScriptCompileRequest();
+            TriggerScriptCompilation();
+        }
+
         ProcessFileDrops();
         HandleGlobalShortcuts();
         UpdateWindowTitle();
+
+        // Refreshed every frame regardless of Play Mode (harmless while editing — nothing reads Input
+        // outside a running script, and Time.Reset() on StartPlay() keeps TotalTime meaningful either way).
+        CoreInput.Update();
+        Time.Update(gameTime);
 
         if (_state.IsPlaying)
             _state.ActiveScene.Update(gameTime);
 
         base.Update(gameTime);
+    }
+
+    // ---------------------------------------------------------------- script compilation
+
+    /// <summary>Kicks off a background recompile of every .cs file under the project's Assets/ folder.
+    /// If a compile is already running, <paramref name="onComplete"/> is chained to run after that one
+    /// finishes rather than starting a second compile on top of it.</summary>
+    private void TriggerScriptCompilation(Action? onComplete = null)
+    {
+        if (_isCompiling)
+        {
+            if (onComplete != null)
+            {
+                var previous = _onCompileComplete;
+                _onCompileComplete = () => { previous?.Invoke(); onComplete(); };
+            }
+            return;
+        }
+
+        _isCompiling = true;
+        _onCompileComplete = onComplete;
+
+        var assetsRoot = _state.Assets.AssetsRoot;
+        Task.Run(() =>
+        {
+            var result = ScriptCompiler.CompileProject(assetsRoot);
+            _pendingCompileResults.Enqueue(result);
+        });
+    }
+
+    private void ProcessCompileResults()
+    {
+        while (_pendingCompileResults.TryDequeue(out var result))
+        {
+            _isCompiling = false;
+
+            if (result.Success)
+            {
+                ScriptRegistry.Register(result.ScriptTypes);
+                _state.LogMessage(result.ScriptTypes.Count > 0
+                    ? $"Scripts compiled successfully ({result.ScriptTypes.Count} script type(s))."
+                    : "No scripts found to compile.");
+            }
+            else
+            {
+                _state.LogMessage($"Script compilation FAILED ({result.Errors.Count} error(s)):");
+                foreach (var error in result.Errors)
+                    _state.LogMessage($"  {error}");
+            }
+
+            var callback = _onCompileComplete;
+            _onCompileComplete = null;
+            callback?.Invoke();
+        }
     }
 
     private void UpdateWindowTitle()
@@ -303,10 +390,12 @@ public class EditorApp : Game
         if (viewportResult.RequestedSceneSwitch != null)
             RequestLoadScene(viewportResult.RequestedSceneSwitch);
 
+        _cameraIcons.Draw(_state, _currentViewMatrix, viewportResult.ImageScreenMin, viewportResult.ImageScreenMax);
         _gizmo.Update(_state, _currentViewMatrix, _currentZoom, viewportResult.ImageScreenMin, viewportResult.IsHovered);
         HandleViewportDrop(viewportResult);
 
         DrawUnsavedChangesModal();
+        DrawCompilingOverlay();
     }
 
     /// <summary>Converts a texture/prefab dropped on the Viewport (from within the app, e.g. the Content Browser)
@@ -424,6 +513,28 @@ public class EditorApp : Game
         _pendingDestructiveAction = null;
     }
 
+    /// <summary>Same flag-driven plain-window approach as DrawUnsavedChangesModal, for the same reason —
+    /// no dependency on ImGui popup ID-stack scoping, just a check against C# state every frame.</summary>
+    private void DrawCompilingOverlay()
+    {
+        if (!_isCompiling) return;
+
+        var viewport = ImGui.GetMainViewport();
+        var center = new System.Numerics.Vector2(
+            viewport.Pos.X + viewport.Size.X * 0.5f,
+            viewport.Pos.Y + viewport.Size.Y * 0.5f);
+        ImGui.SetNextWindowPos(center, ImGuiCond.Always, new System.Numerics.Vector2(0.5f, 0.5f));
+
+        const ImGuiWindowFlags flags = ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse
+            | ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.AlwaysAutoResize
+            | ImGuiWindowFlags.NoDocking | ImGuiWindowFlags.NoMove;
+
+        ImGui.Begin("##CompilingOverlay", flags);
+        int dots = (int)(ImGui.GetTime() * 2.0) % 4;
+        ImGui.Text("Compiling scripts" + new string('.', dots));
+        ImGui.End();
+    }
+
     private void DrawMainMenuBar()
     {
         if (!ImGui.BeginMainMenuBar()) return;
@@ -475,6 +586,13 @@ public class EditorApp : Game
                 _state.PerformUndo();
             if (ImGui.MenuItem($"Redo{DescribeSuffix(_state.Undo.NextRedoDescription)}", "Ctrl+Y", false, _state.Undo.CanRedo))
                 _state.PerformRedo();
+            ImGui.EndMenu();
+        }
+
+        if (ImGui.BeginMenu("Scripts"))
+        {
+            if (ImGui.MenuItem("Recompile", string.Empty, false, !_isCompiling))
+                TriggerScriptCompilation();
             ImGui.EndMenu();
         }
 
@@ -533,6 +651,7 @@ public class EditorApp : Game
     protected override void UnloadContent()
     {
         Window.FileDrop -= OnFileDrop;
+        _cameraIcons?.Dispose();
         _state?.Assets.Dispose();
         base.UnloadContent();
     }

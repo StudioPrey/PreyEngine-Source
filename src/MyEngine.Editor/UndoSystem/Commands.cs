@@ -133,8 +133,40 @@ public sealed class CreateDeleteGameObjectCommand : IEditorCommand
     }
 }
 
-/// <summary>Add or remove a component with no constructor arguments (covers every current component type).</summary>
-public sealed class AddRemoveComponentCommand<TComponent> : IEditorCommand where TComponent : Component, new()
+/// <summary>Add or remove a component whose Type is only known at runtime — i.e. a compiled script, which
+/// can't satisfy AddRemoveComponentCommand&lt;T&gt;'s compile-time generic constraint. Undo removes by
+/// finding the component instance of that Type on the owner, rather than holding a direct reference,
+/// since Redo creates a brand new instance each time (matching how AddComponent always works).</summary>
+public sealed class AddScriptComponentCommand : IEditorCommand
+{
+    private readonly GameObject _owner;
+    private readonly Type _componentType;
+
+    private AddScriptComponentCommand(string description, GameObject owner, Type componentType)
+    {
+        Description = description;
+        _owner = owner;
+        _componentType = componentType;
+    }
+
+    /// <summary>Adds a component of <paramref name="componentType"/> to <paramref name="owner"/> immediately,
+    /// and returns a command that can undo/redo that.</summary>
+    public static AddScriptComponentCommand AddNow(string description, GameObject owner, Type componentType)
+    {
+        owner.AddComponent(componentType);
+        return new(description, owner, componentType);
+    }
+
+    public string Description { get; }
+
+    public void Execute() => _owner.AddComponent(_componentType);
+
+    public void Undo()
+    {
+        var existing = _owner.Components.FirstOrDefault(c => c.GetType() == _componentType);
+        if (existing != null) _owner.RemoveComponent(existing);
+    }
+}
 {
     private readonly GameObject _owner;
     private readonly bool _addIsTheAction;

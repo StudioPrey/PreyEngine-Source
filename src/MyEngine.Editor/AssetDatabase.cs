@@ -2,11 +2,12 @@ using System.Collections.Concurrent;
 using Microsoft.Xna.Framework.Graphics;
 using MyEngine.Core.Components;
 using MyEngine.Core.SceneSystem;
+using MyEngine.Editor.Scripting;
 using MyEngine.EditorFramework;
 
 namespace MyEngine.Editor;
 
-public enum AssetType { Unknown, Texture, Prefab, Scene }
+public enum AssetType { Unknown, Texture, Prefab, Scene, Script }
 
 public sealed class AssetInfo
 {
@@ -127,6 +128,7 @@ public sealed class AssetDatabase : IDisposable
         var type = ImageExtensions.Contains(ext) ? AssetType.Texture
                  : ext.Equals(".prefab", StringComparison.OrdinalIgnoreCase) ? AssetType.Prefab
                  : ext.Equals(".scene", StringComparison.OrdinalIgnoreCase) ? AssetType.Scene
+                 : ext.Equals(".cs", StringComparison.OrdinalIgnoreCase) ? AssetType.Script
                  : AssetType.Unknown;
         if (type == AssetType.Unknown) return;
 
@@ -228,6 +230,25 @@ public sealed class AssetDatabase : IDisposable
         Refresh();
         return Path.GetRelativePath(_assetsRoot, fullPath).Replace('\\', '/');
     }
+
+    /// <summary>Writes a new .cs file from the default script template and imports it. Returns the relative asset path.</summary>
+    public string CreateScript(string parentFolder, string name)
+    {
+        var className = ScriptTemplate.SanitizeClassName(name);
+        var fileName = className + ".cs";
+        var fullPath = Path.Combine(_assetsRoot, parentFolder, fileName);
+
+        File.WriteAllText(fullPath, ScriptTemplate.Generate(className));
+
+        Refresh();
+        return Path.GetRelativePath(_assetsRoot, fullPath).Replace('\\', '/');
+    }
+
+    /// <summary>Finds the .cs asset whose file name matches a script class name (the same "file name = class
+    /// name" convention C# already enforces for public types) — used by the Inspector to show a read-only
+    /// preview of a Script component's source.</summary>
+    public AssetInfo? FindScriptAsset(string typeName) =>
+        _assets.Values.FirstOrDefault(a => a.Type == AssetType.Script && a.DisplayName == typeName);
 
     /// <summary>
     /// Copies a file from outside the project (e.g. dropped in from the OS file manager) into
