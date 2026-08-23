@@ -136,6 +136,10 @@ public static class ViewportPanel
         bool showGrid = state.ShowGrid;
         if (ImGui.Checkbox("Grid", ref showGrid)) state.ShowGrid = showGrid;
 
+        ImGui.SameLine();
+        bool showColliders = state.ShowColliders;
+        if (ImGui.Checkbox("Colliders", ref showColliders)) state.ShowColliders = showColliders;
+
         if (!ImGui.GetIO().WantTextInput)
         {
             if (ImGui.IsKeyPressed(ImGuiKey.W)) state.Gizmo = GizmoMode.Move;

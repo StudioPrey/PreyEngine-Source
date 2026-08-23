@@ -391,6 +391,7 @@ public class EditorApp : Game
             RequestLoadScene(viewportResult.RequestedSceneSwitch);
 
         _cameraIcons.Draw(_state, _currentViewMatrix, viewportResult.ImageScreenMin, viewportResult.ImageScreenMax);
+        ColliderGizmoRenderer.Draw(_state, _currentViewMatrix, _currentZoom, viewportResult.ImageScreenMin, viewportResult.ImageScreenMax);
         _gizmo.Update(_state, _currentViewMatrix, _currentZoom, viewportResult.ImageScreenMin, viewportResult.IsHovered);
         HandleViewportDrop(viewportResult);
 

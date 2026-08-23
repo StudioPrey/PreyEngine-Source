@@ -167,6 +167,11 @@ public sealed class AddScriptComponentCommand : IEditorCommand
         if (existing != null) _owner.RemoveComponent(existing);
     }
 }
+
+/// <summary>Add or remove a component whose Type is known at compile time — the common case, covering
+/// every built-in component (SpriteRenderer, Camera2D, Rigidbody2D, ...). See AddScriptComponentCommand
+/// for the runtime-Type counterpart used for compiled scripts.</summary>
+public sealed class AddRemoveComponentCommand<TComponent> : IEditorCommand where TComponent : Component, new()
 {
     private readonly GameObject _owner;
     private readonly bool _addIsTheAction;

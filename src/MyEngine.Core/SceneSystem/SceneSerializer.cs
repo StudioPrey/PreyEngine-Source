@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Microsoft.Xna.Framework;
 using MyEngine.Core.Components;
 using MyEngine.Core.ECS;
+using MyEngine.Core.Physics;
 using MyEngine.Core.Scripting;
 
 namespace MyEngine.Core.SceneSystem;
@@ -36,6 +37,9 @@ public sealed class GameObjectData
 [JsonDerivedType(typeof(SpriteRendererData), "SpriteRenderer")]
 [JsonDerivedType(typeof(Camera2DData), "Camera2D")]
 [JsonDerivedType(typeof(ScriptComponentData), "Script")]
+[JsonDerivedType(typeof(Rigidbody2DData), "Rigidbody2D")]
+[JsonDerivedType(typeof(BoxCollider2DData), "BoxCollider2D")]
+[JsonDerivedType(typeof(CircleCollider2DData), "CircleCollider2D")]
 public abstract class ComponentData { }
 
 public sealed class SpriteRendererData : ComponentData
@@ -58,6 +62,39 @@ public sealed class Camera2DData : ComponentData
     public float FollowSmoothing { get; set; } = 0.15f;
     public float FollowOffsetX { get; set; }
     public float FollowOffsetY { get; set; }
+}
+
+public sealed class Rigidbody2DData : ComponentData
+{
+    public BodyType2D BodyType { get; set; } = BodyType2D.Dynamic;
+    public float Mass { get; set; } = 1f;
+    public float GravityScale { get; set; } = 1f;
+    public float LinearDamping { get; set; }
+    public float AngularDamping { get; set; } = 0.05f;
+    public bool FreezeRotation { get; set; }
+}
+
+public sealed class BoxCollider2DData : ComponentData
+{
+    public float OffsetX { get; set; }
+    public float OffsetY { get; set; }
+    public bool IsTrigger { get; set; }
+    public float Friction { get; set; } = 0.4f;
+    public float Restitution { get; set; }
+    public float Density { get; set; } = 1f;
+    public float SizeX { get; set; } = 64f;
+    public float SizeY { get; set; } = 64f;
+}
+
+public sealed class CircleCollider2DData : ComponentData
+{
+    public float OffsetX { get; set; }
+    public float OffsetY { get; set; }
+    public bool IsTrigger { get; set; }
+    public float Friction { get; set; } = 0.4f;
+    public float Restitution { get; set; }
+    public float Density { get; set; } = 1f;
+    public float Radius { get; set; } = 32f;
 }
 
 /// <summary>
@@ -137,6 +174,42 @@ public static class SceneSerializer
                 case Script script:
                     data.Components.Add(ScriptSerialization.Capture(script));
                     break;
+                case Rigidbody2D rb:
+                    data.Components.Add(new Rigidbody2DData
+                    {
+                        BodyType = rb.BodyType,
+                        Mass = rb.Mass,
+                        GravityScale = rb.GravityScale,
+                        LinearDamping = rb.LinearDamping,
+                        AngularDamping = rb.AngularDamping,
+                        FreezeRotation = rb.FreezeRotation,
+                    });
+                    break;
+                case BoxCollider2D box:
+                    data.Components.Add(new BoxCollider2DData
+                    {
+                        OffsetX = box.Offset.X,
+                        OffsetY = box.Offset.Y,
+                        IsTrigger = box.IsTrigger,
+                        Friction = box.Friction,
+                        Restitution = box.Restitution,
+                        Density = box.Density,
+                        SizeX = box.Size.X,
+                        SizeY = box.Size.Y,
+                    });
+                    break;
+                case CircleCollider2D circle:
+                    data.Components.Add(new CircleCollider2DData
+                    {
+                        OffsetX = circle.Offset.X,
+                        OffsetY = circle.Offset.Y,
+                        IsTrigger = circle.IsTrigger,
+                        Friction = circle.Friction,
+                        Restitution = circle.Restitution,
+                        Density = circle.Density,
+                        Radius = circle.Radius,
+                    });
+                    break;
                 // Transform is implicit and already captured above; skip it here.
             }
         }
@@ -167,6 +240,33 @@ public static class SceneSerializer
                 if (scriptType == null) break; // "missing script" — skip rather than fail the whole load
                 var script = (Script)go.AddComponent(scriptType);
                 ScriptSerialization.Apply(script, scriptData);
+                break;
+            case Rigidbody2DData rbData:
+                var rigidbody = go.AddComponent<Rigidbody2D>();
+                rigidbody.BodyType = rbData.BodyType;
+                rigidbody.Mass = rbData.Mass;
+                rigidbody.GravityScale = rbData.GravityScale;
+                rigidbody.LinearDamping = rbData.LinearDamping;
+                rigidbody.AngularDamping = rbData.AngularDamping;
+                rigidbody.FreezeRotation = rbData.FreezeRotation;
+                break;
+            case BoxCollider2DData boxData:
+                var boxCollider = go.AddComponent<BoxCollider2D>();
+                boxCollider.Offset = new Vector2(boxData.OffsetX, boxData.OffsetY);
+                boxCollider.IsTrigger = boxData.IsTrigger;
+                boxCollider.Friction = boxData.Friction;
+                boxCollider.Restitution = boxData.Restitution;
+                boxCollider.Density = boxData.Density;
+                boxCollider.Size = new Vector2(boxData.SizeX, boxData.SizeY);
+                break;
+            case CircleCollider2DData circleData:
+                var circleCollider = go.AddComponent<CircleCollider2D>();
+                circleCollider.Offset = new Vector2(circleData.OffsetX, circleData.OffsetY);
+                circleCollider.IsTrigger = circleData.IsTrigger;
+                circleCollider.Friction = circleData.Friction;
+                circleCollider.Restitution = circleData.Restitution;
+                circleCollider.Density = circleData.Density;
+                circleCollider.Radius = circleData.Radius;
                 break;
         }
     }

@@ -60,6 +60,10 @@ public sealed class EditorState
     public GizmoSpace GizmoSpace { get; set; } = GizmoSpace.World;
     public bool ShowGrid { get; set; } = true;
 
+    /// <summary>Whether Collider2D outlines are overlaid in the Viewport — the physics equivalent of
+    /// Unity's/Godot's "show colliders" gizmo toggle.</summary>
+    public bool ShowColliders { get; set; } = true;
+
     /// <summary>Current folder the Content Browser is showing, relative to Assets/ ("" = Assets root).</summary>
     public string ContentBrowserFolder { get; set; } = "";
     public PendingCreateItem? PendingCreate { get; set; }

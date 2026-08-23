@@ -1,5 +1,6 @@
 using Microsoft.Xna.Framework;
 using MyEngine.Core.ECS;
+using MyEngine.Core.Physics;
 
 namespace MyEngine.Core.SceneSystem;
 
@@ -12,6 +13,11 @@ public sealed class Scene
     public string Name { get; set; }
     private readonly List<GameObject> _gameObjects = new();
     public IReadOnlyList<GameObject> GameObjects => _gameObjects;
+
+    /// <summary>This scene's own physics simulation — every Rigidbody2D/Collider2D created within this
+    /// scene registers itself here. Each Scene gets a fresh, independent one (an Edit scene and a cloned
+    /// Play scene never share simulation state), matching Godot's one-World2D-per-viewport model.</summary>
+    public PhysicsWorld2D Physics { get; } = new();
 
     public Scene(string name = "Untitled Scene")
     {
@@ -54,6 +60,11 @@ public sealed class Scene
 
     public void Update(GameTime gameTime)
     {
+        // Physics steps first so scripts' Update sees this frame's already-resolved positions/collisions —
+        // the same ordering Unity uses (FixedUpdate before Update) and Godot uses (_physics_process
+        // interleaved ahead of _process within a frame).
+        Physics.Step((float)gameTime.ElapsedGameTime.TotalSeconds);
+
         // ToArray so components can safely add/destroy objects mid-update
         foreach (var go in _gameObjects.ToArray())
             go.UpdateAll(gameTime);

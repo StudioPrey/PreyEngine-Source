@@ -1,5 +1,6 @@
 using Microsoft.Xna.Framework;
 using MyEngine.Core.ECS;
+using MyEngine.Core.Physics;
 
 namespace MyEngine.Core.Scripting;
 
@@ -62,6 +63,12 @@ public abstract class Script : Component
         get => Enabled;
         set => Enabled = value;
     }
+
+    /// <summary>This script's Scene's physics world — raycasts, overlap queries, gravity. Unity exposes the
+    /// equivalent as a global static (Physics2D); here it's reached through the owning Scene instead, since
+    /// an Edit scene and a Play scene can exist at the same time and each has its own simulation. Safe to
+    /// use from anywhere a script's lifecycle methods run — by then Owner is always in a scene.</summary>
+    public PhysicsWorld2D physics => Owner.Scene!.Physics;
 
     // ---------------------------------------------------------------- lifecycle (override these, not Component's)
     // Update(GameTime) from Component is sealed below specifically so a script can't accidentally override

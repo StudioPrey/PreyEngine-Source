@@ -4,6 +4,7 @@ using ImGuiNET;
 using Microsoft.Xna.Framework.Graphics;
 using MyEngine.Core.Components;
 using MyEngine.Core.ECS;
+using MyEngine.Core.Physics;
 using MyEngine.Core.SceneSystem;
 using MyEngine.Core.Scripting;
 using MyEngine.Editor.UndoSystem;
@@ -112,6 +113,15 @@ public static class InspectorPanel
                 case Camera2D cam:
                     DrawCamera(cam, state);
                     break;
+                case Rigidbody2D rb:
+                    DrawRigidbody(rb, state);
+                    break;
+                case BoxCollider2D box:
+                    DrawBoxCollider(box, state);
+                    break;
+                case CircleCollider2D circle:
+                    DrawCircleCollider(circle, state);
+                    break;
                 case Script script:
                     DrawScript(script, state);
                     break;
@@ -128,6 +138,17 @@ public static class InspectorPanel
                 AddComponent<SpriteRenderer>(go, state, "Add Sprite Renderer");
             if (go.GetComponent<Camera2D>() == null && ImGui.MenuItem("Camera 2D"))
                 AddComponent<Camera2D>(go, state, "Add Camera 2D");
+
+            ImGui.Separator();
+            if (go.GetComponent<Rigidbody2D>() == null && ImGui.MenuItem("Rigidbody 2D"))
+                AddComponent<Rigidbody2D>(go, state, "Add Rigidbody 2D");
+            // Multiple colliders per GameObject are supported (compound shapes), so unlike the
+            // single-instance components above, these stay available even after one's been added —
+            // matching Unity's "Add Component" always offering another Box/Circle Collider 2D.
+            if (ImGui.MenuItem("Box Collider 2D"))
+                AddComponent<BoxCollider2D>(go, state, "Add Box Collider 2D");
+            if (ImGui.MenuItem("Circle Collider 2D"))
+                AddComponent<CircleCollider2D>(go, state, "Add Circle Collider 2D");
 
             var scriptTypes = ScriptRegistry.AllTypes.OrderBy(t => t.Name).ToArray();
             if (scriptTypes.Length > 0)
@@ -319,6 +340,114 @@ public static class InspectorPanel
         if (old == target) return;
         cam.FollowTarget = target;
         undo.Push(new PropertyChangeCommand<GameObject?>("Change Follow Target", v => cam.FollowTarget = v, old, target));
+    }
+
+    // ---------------------------------------------------------------- physics components
+
+    private static readonly string[] BodyTypeNames = { "Dynamic", "Kinematic", "Static" };
+
+    private static void DrawRigidbody(Rigidbody2D rb, EditorState state)
+    {
+        if (!ImGui.CollapsingHeader("Rigidbody 2D", ImGuiTreeNodeFlags.DefaultOpen)) return;
+        ImGui.PushID("rigidbody2d");
+        var undo = state.Undo;
+
+        var bodyTypeBefore = rb.BodyType;
+        int bodyTypeIndex = (int)bodyTypeBefore;
+        if (ImGui.Combo("Body Type", ref bodyTypeIndex, BodyTypeNames, BodyTypeNames.Length))
+            rb.BodyType = (BodyType2D)bodyTypeIndex;
+        ImGuiUndo.Track(undo, "Change Body Type", bodyTypeBefore, rb.BodyType, v => rb.BodyType = v);
+
+        float massBefore = rb.Mass;
+        float mass = massBefore;
+        if (ImGui.DragFloat("Mass", ref mass, 0.05f, 0.01f, 1000f)) rb.Mass = mass;
+        ImGuiUndo.Track(undo, "Change Mass", massBefore, rb.Mass, v => rb.Mass = v);
+
+        float gravityScaleBefore = rb.GravityScale;
+        float gravityScale = gravityScaleBefore;
+        if (ImGui.DragFloat("Gravity Scale", ref gravityScale, 0.05f)) rb.GravityScale = gravityScale;
+        ImGuiUndo.Track(undo, "Change Gravity Scale", gravityScaleBefore, rb.GravityScale, v => rb.GravityScale = v);
+
+        float linearDampingBefore = rb.LinearDamping;
+        float linearDamping = linearDampingBefore;
+        if (ImGui.DragFloat("Linear Damping", ref linearDamping, 0.01f, 0f, 100f)) rb.LinearDamping = linearDamping;
+        ImGuiUndo.Track(undo, "Change Linear Damping", linearDampingBefore, rb.LinearDamping, v => rb.LinearDamping = v);
+
+        float angularDampingBefore = rb.AngularDamping;
+        float angularDamping = angularDampingBefore;
+        if (ImGui.DragFloat("Angular Damping", ref angularDamping, 0.01f, 0f, 100f)) rb.AngularDamping = angularDamping;
+        ImGuiUndo.Track(undo, "Change Angular Damping", angularDampingBefore, rb.AngularDamping, v => rb.AngularDamping = v);
+
+        bool freezeBefore = rb.FreezeRotation;
+        bool freeze = freezeBefore;
+        if (ImGui.Checkbox("Freeze Rotation", ref freeze)) rb.FreezeRotation = freeze;
+        ImGuiUndo.Track(undo, "Toggle Freeze Rotation", freezeBefore, rb.FreezeRotation, v => rb.FreezeRotation = v);
+
+        ImGui.PopID();
+    }
+
+    private static void DrawBoxCollider(BoxCollider2D box, EditorState state)
+    {
+        if (!ImGui.CollapsingHeader("Box Collider 2D", ImGuiTreeNodeFlags.DefaultOpen)) return;
+        ImGui.PushID("boxCollider2d");
+        var undo = state.Undo;
+
+        var sizeBefore = box.Size;
+        var size = new Vector2(sizeBefore.X, sizeBefore.Y);
+        if (ImGui.DragFloat2("Size", ref size, 1f, 0.01f, 8192f))
+            box.Size = new Microsoft.Xna.Framework.Vector2(size.X, size.Y);
+        ImGuiUndo.Track(undo, "Resize Box Collider", sizeBefore, box.Size, v => box.Size = v);
+
+        DrawColliderCommonFields(box, undo);
+
+        ImGui.PopID();
+    }
+
+    private static void DrawCircleCollider(CircleCollider2D circle, EditorState state)
+    {
+        if (!ImGui.CollapsingHeader("Circle Collider 2D", ImGuiTreeNodeFlags.DefaultOpen)) return;
+        ImGui.PushID("circleCollider2d");
+        var undo = state.Undo;
+
+        float radiusBefore = circle.Radius;
+        float radius = radiusBefore;
+        if (ImGui.DragFloat("Radius", ref radius, 0.5f, 0.01f, 4096f)) circle.Radius = radius;
+        ImGuiUndo.Track(undo, "Resize Circle Collider", radiusBefore, circle.Radius, v => circle.Radius = v);
+
+        DrawColliderCommonFields(circle, undo);
+
+        ImGui.PopID();
+    }
+
+    /// <summary>Offset/IsTrigger/Friction/Restitution — identical across every Collider2D subtype, so both
+    /// DrawBoxCollider and DrawCircleCollider share this rather than repeating it.</summary>
+    private static void DrawColliderCommonFields(Collider2D collider, UndoStack undo)
+    {
+        var offsetBefore = collider.Offset;
+        var offset = new Vector2(offsetBefore.X, offsetBefore.Y);
+        if (ImGui.DragFloat2("Offset", ref offset, 1f))
+            collider.Offset = new Microsoft.Xna.Framework.Vector2(offset.X, offset.Y);
+        ImGuiUndo.Track(undo, "Move Collider Offset", offsetBefore, collider.Offset, v => collider.Offset = v);
+
+        bool triggerBefore = collider.IsTrigger;
+        bool trigger = triggerBefore;
+        if (ImGui.Checkbox("Is Trigger", ref trigger)) collider.IsTrigger = trigger;
+        ImGuiUndo.Track(undo, "Toggle Is Trigger", triggerBefore, collider.IsTrigger, v => collider.IsTrigger = v);
+
+        float frictionBefore = collider.Friction;
+        float friction = frictionBefore;
+        if (ImGui.SliderFloat("Friction", ref friction, 0f, 1f)) collider.Friction = friction;
+        ImGuiUndo.Track(undo, "Change Friction", frictionBefore, collider.Friction, v => collider.Friction = v);
+
+        float restitutionBefore = collider.Restitution;
+        float restitution = restitutionBefore;
+        if (ImGui.SliderFloat("Restitution", ref restitution, 0f, 1f)) collider.Restitution = restitution;
+        ImGuiUndo.Track(undo, "Change Restitution", restitutionBefore, collider.Restitution, v => collider.Restitution = v);
+
+        float densityBefore = collider.Density;
+        float density = densityBefore;
+        if (ImGui.DragFloat("Density", ref density, 0.05f, 0.01f, 1000f)) collider.Density = density;
+        ImGuiUndo.Track(undo, "Change Density", densityBefore, collider.Density, v => collider.Density = v);
     }
 
     // ---------------------------------------------------------------- script components
