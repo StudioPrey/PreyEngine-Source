@@ -1,156 +1,349 @@
-# PreyEngine Source (Community Edition)
+# MyEngine — یک انجین ۲بعدی سفارشی با MonoGame + ImGui.NET
 
-**Version: STS 11.3**
+## LTS 1.1 — سیستم فیزیک ۲بعدی (Physics System)
 
-**PreyEngine** is a custom 2D game engine built with **MonoGame** + **ImGui.NET**.  
-Created and maintained by **Arian Shahmohammadi**, founder of **Easyprey Studio**.
+یک سیستم فیزیک ۲بعدیِ کامل، از صفر نوشته شده و الهام‌گرفته از معماری Godot و Unity، به `MyEngine.Core` اضافه شد. فقط فایل جدید اضافه شده — به هیچ‌کدوم از منطق هسته‌ی ادیتور (Hierarchy، UndoStack، AssetDatabase، ScriptCompiler و…) دست نخورد؛ تغییرات توی فایل‌های موجود فقط به اندازه‌ی لازم برای «وصل کردن» فیزیک به بقیه‌ی سیستم بود (لیستشون پایین‌تر هست).
 
-This repository is the official **Community / Source** release of PreyEngine.  
-It is published under the MIT License with a mandatory attribution requirement.
+### معماری: یه لایه‌ی abstract بین «الگوریتم شبیه‌سازی» و بقیه‌ی موتور
+درست مثل `PhysicsServer2D` توی Godot که چند تا بک‌اند مختلف پشتش می‌تونه باشه، این‌جا هم یه اینترفیس `IPhysicsBackend2D` هست که کارِ «شبیه‌سازی واقعی» رو کاملاً از بقیه‌ی موتور (کامپوننت‌ها، حلقه‌ی Update، callback های اسکریپت) جدا می‌کنه:
 
----
+- **`PhysicsWorld2D`** — فاساد اصلی؛ هر `Scene` دقیقاً یکی از این‌ها رو داره (`Scene.Physics`)، دقیقاً مثل هر `World2D` توی Godot که فیزیک خودش رو مستقل نگه می‌داره. Gravity، fixed-timestep loop (۶۰ قدم در ثانیه، مستقل از فریم‌ریت — همون الگوی accumulator که هم Unity هم Godot استفاده می‌کنن)، و dispatch کردن collision/trigger callback ها همه این‌جان.
+- **`ManagedPhysicsBackend2D`** — تنها پیاده‌سازیِ فعلیِ `IPhysicsBackend2D`؛ یه شبیه‌ساز کامل و مستقل (بدون هیچ وابستگی خارجی) با broadphase AABB، narrowphase SAT+clipping، و sequential-impulse solver — همون خانواده‌ی الگوریتمی که Box2D (و در نتیجه فیزیک ۲بعدیِ خودِ Godot و Unity) روش ساخته شده.
+- **نقطه‌ی توسعه‌ی آینده:** اضافه‌کردن Bullet یا PhysX بعداً یعنی فقط یه کلاس جدید که `IPhysicsBackend2D` رو پیاده‌سازی کنه و همون داده‌ی عمومیِ `Rigidbody2D`/`Collider2D` رو بخونه/بنویسه — نه `PhysicsWorld2D`، نه خودِ کامپوننت‌ها، نه هیچ پنل ادیتوری نیاز به تغییر ندارن.
 
-## About
+### کامپوننت‌ها
+- **`Rigidbody2D`** — با `BodyType` (`Dynamic` / `Kinematic` / `Static`؛ همون تقسیم‌بندیِ سه‌تایی که Godot با نودهای جدا (`RigidBody2D`/`CharacterBody2D`/`StaticBody2D`) نشون می‌ده، این‌جا روی یک کامپوننت). `Mass`، `GravityScale`، `LinearDamping`/`AngularDamping`، `FreezeRotation`، و متدهای آشنای یونیتی: `AddForce`، `AddForceAtPosition`، `AddTorque`، `MovePosition`، `MoveRotation`.
+- **`Collider2D`** (انتزاعی) → **`BoxCollider2D`** و **`CircleCollider2D`** — `Offset`، `IsTrigger`، `Friction`، `Restitution`، `Density`. یه GameObject که فقط Collider2D داره و Rigidbody2D نداره، خودکار مثل یه بادیِ Static رفتار می‌کنه (دقیقاً قرارداد «static collider» یونیتی) — یعنی برای دیوار/زمین ثابت لازم نیست هیچ Rigidbody2D اضافه کنی.
+- چند تا Collider2D روی یه GameObject مجازه (شکل مرکب، مثل چندتا BoxCollider2D روی یونیتی)؛ جرم بین‌شون بر اساس مساحت × Density تقسیم میشه.
 
-PreyEngine is an Iranian-made 2D game engine designed around a clean C# architecture and a Unity-like workflow. This STS 11.3 snapshot includes the editor, scene system, prefabs, input, scripting with hot reload, camera gizmos, and a modern Avalonia launcher.
+### تشخیص برخورد و Solver
+- Circle-vs-Circle، Circle-vs-Box، Box-vs-Box (جعبه‌ها می‌تونن بچرخن — OBB واقعی، نه فقط AABB) با الگوریتم استاندارد SAT برای پیدا کردن least-penetration axis و بعد clipping برای تا ۲ نقطه‌ی تماس؛ همین ۲ نقطه‌ای بودن باعث میشه جعبه‌های روی‌هم‌چیده‌شده درست بشینن، نه لرزش روی یه نقطه.
+- Solver: sequential impulse با چند iteration در هر قدم (normal impulse با restitution، بعد friction impulse با مدل Coulomb، clamp‌شده با ضریب اصطکاک)، به‌علاوه یه پاس positional correction بعد از حل سرعت‌ها تا نفوذ باقی‌مونده جمع نشه.
+- Broadphase فعلاً یه AABB sweep ساده‌ست (O(n²)) — برای تعداد آبجکت معمولِ یه پروژه‌ی ۲بعدی v1 کافیه؛ اگه صحنه خیلی شلوغ شد، یه spatial grid قدم بعدیِ طبیعیه.
 
----
+### Callback های برخورد — روی `Component`، نه فقط `Script`
+`OnCollisionEnter2D` / `OnCollisionStay2D` / `OnCollisionExit2D` و `OnTriggerEnter2D` / `OnTriggerStay2D` / `OnTriggerExit2D` مستقیم روی `Component` اضافه شدن (کنار `Update`/`Draw` که از قبل اونجان) — یعنی هر کامپوننتی روی اون GameObject، نه فقط یه `Script`، می‌تونه override‌شون کنه؛ دقیقاً همون چیزی که یونیتی با message-دادن به همه‌ی کامپوننت‌های GameObject انجام میده.
 
-## Open Source Policy
+```csharp
+public class Bullet : Script
+{
+    protected override void OnUpdate(float deltaTime) { /* حرکت گلوله */ }
 
-| Period | Policy |
-|--------|--------|
-| **Until Bahman 1405 (Jan/Feb 2027)** | Community source is released with approximately **3 version delay** behind the mainline |
-| **From Bahman 1405 onward** | The 3-version delay policy is **retired**. Community releases follow a **2-month delay** instead |
-
-**Critical and essential bug fixes** are **not** subject to the delay policy. Once identified and fixed, they are made available as soon as practical — without waiting for the normal delay window.
-
----
-
-## What's New in STS 11.3
-
-### Input System
-- Unified input facade over MonoGame (`Keyboard`, `Mouse`, `TouchPanel`)
-- Keyboard helpers: `IsKeyDown` / `IsKeyPressed` / `IsKeyReleased`
-- Pointer abstraction (mouse + touch) for cross-platform code
-- Mouse buttons, scroll delta, mouse delta
-- Multi-touch accessors for future mobile runtimes
-
-### Scripting System
-- Unity-inspired `Script` component model
-- Script compilation and registry
-- Hot reload support
-- Script serialization with scenes
-- Starter templates
-
-### Editor
-- Camera gizmo / camera icon in the viewport
-- External editor launcher integration
-- Prior stability fixes retained (Transform save, ProjectSettings, drag-and-drop, dirty tracking)
-
----
-
-## Features (STS 11.3)
-
-### Core
-- Entity-Component-System (ECS)
-- `GameObject`, `Component`, `Transform`
-- Scene system with JSON serialization (Transform save working)
-- Prefab system (create, instantiate, Apply / Revert / Unlink)
-- SpriteRenderer
-- Camera2D with follow target, smoothing and offset
-- Input System
-- Scripting System + Hot Reload
-- `Time` utilities for scripts
-
-### Editor
-- Hierarchy, Inspector, Viewport (Play Mode), Content Browser, Console
-- Gizmo system (Move / Rotate / Scale) — World & Local
-- Camera gizmo
-- Full Undo/Redo
-- Adaptive grid, scene tabs
-- Live asset import (PNG, JPG, BMP)
-- Drag & drop (File Explorer, Content Browser, Hierarchy)
-- ProjectSettings (last opened scene)
-- Dirty tracking with save confirmation
-
-### Launcher
-- Avalonia UI
-- Splash screen
-- Project management
-- Editor version manager
-
----
-
-## Project Structure
-
-```
-PreyEngine-Source/
-├── src/
-│   ├── MyEngine.Core/              # Engine core (ECS, Scene, Input, Scripting)
-│   ├── MyEngine.Editor/            # Editor (ImGui + MonoGame)
-│   ├── MyEngine.EditorFramework/   # Shared ImGui renderer
-│   └── MyEngine.Launcher/          # Avalonia launcher
-├── MyEngine.sln
-├── LICENSE
-└── README.md
+    public override void OnCollisionEnter2D(Collision2D collision)
+    {
+        if (collision.GameObject.Name == "Enemy")
+            Destroy(gameObject);
+    }
+}
 ```
 
-> Internal code still uses the historical namespace `MyEngine`.  
-> The public product name is **PreyEngine**.
+### دسترسی از اسکریپت: `physics`
+چون یه Edit Scene و یه Play Scene ممکنه هم‌زمان وجود داشته باشن، فیزیک به‌جای یه static سراسری (مثل `Physics2D` قدیمیِ یونیتی)، از طریق `Scene` در دسترسه — `Script.cs` یه alias جدید اضافه کرد (دقیقاً طبق قاعده‌ی خودِ اون فایل: هر اسم آشنای جدید فقط یه خط اونجا):
+
+```csharp
+if (physics.Raycast(transform.Position, Vector2.UnitX, out var hit, maxDistance: 500f))
+    Console.WriteLine($"خورد به {hit.Collider.Owner.Name}");
+```
+`physics.RaycastAll`، `physics.OverlapPoint`، `physics.OverlapCircle` هم در دسترسن.
+
+### ادیتور
+- **Inspector**: بخش‌های جدید برای Rigidbody 2D / Box Collider 2D / Circle Collider 2D با Undo کامل روی هر فیلد (همون الگوی `ImGuiUndo.Track` که SpriteRenderer/Camera2D استفاده می‌کنن). «+ Add Component» یه Rigidbody 2D به‌شرطی نشون میده که از قبل نداشته باشی؛ Box/Circle Collider 2D همیشه در دسترسن چون چندتاشون مجازه.
+- **نمایش Collider توی Viewport**: خط دور هر Collider2D (باکس چرخیده‌شده یا دایره) روی صحنه کشیده میشه — سبز برای collider معمولی، آبی برای trigger — با همون تکنیک overlay صفحه‌ای که Gizmo و آیکون دوربین استفاده می‌کنن (`ColliderGizmoRenderer.cs`، فایل جدید). چک‌باکس **Colliders** کنار چک‌باکس Grid توی نوار بالای Viewport، خاموش/روشنش می‌کنه.
+- **ذخیره/بارگذاری صحنه**: `Rigidbody2D`/`BoxCollider2D`/`CircleCollider2D` مثل هر کامپوننت دیگه‌ای توی `.scene`/`.prefab` سریالایز میشن.
+
+### یه باگ قدیمی و بی‌ربط به فیزیک، پیدا و رفع شد
+حین بررسیِ کامل کدبیس قبل از شروع (طبق روال همیشگی، قبل از نوشتن کد کل معماری رو می‌خونم)، توی `Commands.cs` (سیستم Undo) یه خط اعلانِ کلاس گم بود — یعنی `AddRemoveComponentCommand<TComponent>` بدنه‌ی کلاسش رو داشت ولی خطِ `public sealed class AddRemoveComponentCommand<TComponent> : IEditorCommand where TComponent : Component, new()` بالاش نبود، که یعنی کل پروژه اصلاً کامپایل نمی‌شد — نه فقط فیچر فیزیک، هیچی. این ربطی به فیزیک نداشت (به‌احتمال زیاد یه اتفاق موقع ادیت قبلی)، ولی چون جلوی کامپایل کل سالوشن رو می‌گرفت، همین یه خط رو اضافه کردم؛ بقیه‌ی اون فایل دست‌نخورده موند.
+
+### محدودیت‌های شناخته‌شده‌ی v1 (صادقانه بگم که کجاها هنوز کامل نیست)
+- **بدون Continuous Collision Detection**: آبجکت‌های خیلی سریع ممکنه از یه collider نازک رد بشن (tunneling) — تشخیص discrete-only، دقیقاً مثل تنظیمات پیش‌فرض Unity/Godot (که خودشونم CCD رو اختیاری/جدا ارائه میدن).
+- **بدون sleeping**: بادی‌های ساکن هم هر قدم کامل شبیه‌سازی میشن؛ برای صحنه‌های خیلی شلوغ یه بهینه‌سازی آینده‌ست.
+- **`Friction`/`Restitution` فیلد مستقیم روی هر Collider2D**، نه یه asset مشترک (`PhysicsMaterial2D`) مثل یونیتی/Godot — برای v1 ساده‌تر؛ ترکیب دو collider با میانگین هندسی (friction) و بیشینه (restitution) حساب میشه.
+- **Gravity/Fixed Timestep/Iteration Count** فعلاً فقط از کد قابل تنظیمن (`PhysicsWorld2D.Gravity` و…)، هنوز پنل Project Settings ندارن.
+- **شکل مرکب فقط روی یه GameObject**: چند Collider2D روی همون GameObject کار می‌کنه، ولی از طریق GameObject فرزند (مثل ساختار Godot با نود فرزند) پشتیبانی نمیشه.
+- **CircleCollider2D مقیاسِ غیریکنواخت رو نادیده می‌گیره** (میانگین X/Y رو به‌عنوان شعاع می‌گیره) — چون دایره‌ی واقعاً بیضی‌شده اصلاً پشتیبانی نمیشه؛ برای اون حالت از BoxCollider2D استفاده کن.
 
 ---
 
-## Requirements
+## STS 11.3 — Input System، Scripting System، Hot Reload، Camera Gizmo
 
-- [.NET 8 SDK](https://dotnet.microsoft.com/download) or newer
-- Windows (primary platform)
+### Input System (پایه‌ی آماده برای لمسی/اندروید)
+`MyEngine.Core.InputSystem.Input` — یک facade استاتیک که مستقیم روی APIهای خودِ MonoGame (`Keyboard`, `Mouse`, `TouchPanel`) ساخته شده؛ این سه‌تا از قبل روی همه‌ی پلتفرم‌های MonoGame (از جمله اندروید) با همون API کار می‌کنن، پس نیازی به یه لایه‌ی provider جدا نبود.
+- `Input.IsKeyDown/IsKeyPressed/IsKeyReleased(Keys)` برای کیبورد.
+- `Input.PointerPosition` / `Input.IsPointerDown` — مفهوم یکپارچه‌ی "اشاره‌گر" که هم موس هم لمس رو پوشش می‌ده؛ کدی که برات نوشتی الان با موس کار می‌کنه، بدون تغییر با لمس روی اندروید هم کار می‌کنه.
+- `Input.IsMouseButtonDown/Pressed/Released(MouseButton)`, `Input.ScrollDelta`, `Input.MouseDelta` برای نیازهای موس‌محور.
+- `Input.TouchCount` / `Input.GetTouchPosition(i)` برای دسترسی مستقیم چندلمسی، برای وقتی که ران‌تایم اندروید رسید.
+
+### سیستم اسکریپت‌نویسی (الهام از یونیتی)
+هر اسکریپت از `MyEngine.Core.Scripting.Script` ارث‌بری می‌کنه — یه لایه‌ی ترجمه‌ی نازک روی `Component` که اسم‌های آشنای یونیتی رو می‌ده (`gameObject`, `transform`, `name`, `enabled`) و یه چرخه‌ی عمر ساده‌شده (`Awake`, `Start`, `OnUpdate(float deltaTime)`) بدون این‌که منطق موتور رو تکرار کنه — همه‌ی این ترجمه‌ها توی یک فایل (`Script.cs`) هستن؛ اضافه‌کردن یه اسم آشنای جدید بعداً یعنی فقط یه خط اونجا اضافه کنی.
+
+```csharp
+public class PlayerController : Script
+{
+    public float speed = 200f;
+
+    protected override void OnUpdate(float deltaTime)
+    {
+        if (Input.IsKeyDown(Keys.Right))
+            transform.Position += new Vector2(speed * deltaTime, 0);
+    }
+}
+```
+
+**داخل ادیتور:**
+- راست‌کلیک توی Content Browser → **Create > Script** یه فایل `.cs` با تمپلیت پیش‌فرض می‌سازه.
+- دابل‌کلیک روی یه Script asset، با هرچی که سیستم‌عامل برای فایل‌های `.cs` تنظیم کرده (معمولاً VS Code یا Visual Studio) بازش می‌کنه.
+- منوی «+ Add Component» حالا یه زیرمنوی «Scripts» داره که همه‌ی کلاس‌های کامپایل‌شده رو نشون می‌ده.
+- توی Inspector، فیلدهای public اسکریپت (فعلاً `float`/`int`/`bool`/`string`) خودکار قابل‌ویرایشن، با Undo کامل.
+- یه پیش‌نمایش **فقط-خواندنی** از سورس‌کد پایین Inspector اسکریپت — می‌تونی بخونی، کپی کنی، ولی نمی‌تونی همون‌جا ویرایش کنی؛ دکمه‌ی «Open in Editor» برای ویرایش واقعی.
+
+**Hot Reload:** کامپایل با Roslyn (in-memory، نه `dotnet build`، برای سرعت) توی این موقعیت‌ها خودکار اجرا می‌شه:
+- موقع باز شدن ادیتور (قبل از باز شدن صحنه، تا کامپوننت‌های اسکریپتی صحنه درست شناسایی بشن).
+- هر بار که پنجره‌ی ادیتور فوکوس می‌گیره (یعنی از VS Code/Visual Studio برگردی) — دقیقاً همون چیزی که خواستی.
+- بعد از ساخت اسکریپت جدید از Content Browser.
+- دستی از منوی **Scripts > Recompile**.
+
+کامپایل روی یه ترد جدا اجرا می‌شه (چون Roslyn فقط CPU-baund هست، هیچ تماسی با GraphicsDevice/ImGui نداره) و یه پیام «Compiling scripts...» وسط صفحه نشون داده می‌شه تا UI فریز نکنه. اگه کامپایل خطا داشت، همه‌ی خطاها (با فایل/خط/توضیح) توی Console ادیتور چاپ می‌شن.
+
+**محدودیت‌های شناخته‌شده‌ی v1 (صادقانه بگم که کجاها هنوز کامل نیست):**
+- فقط فیلدهای `float`/`int`/`bool`/`string` روی اسکریپت‌ها serialize/در Inspector نشون داده می‌شن — نه Vector2، نه آرایه، نه رفرنس به GameObject دیگه. اینا واقعاً کار بزرگیه (شبیه SerializedProperty یونیتی) و آگاهانه برای الان کنار گذاشته شده.
+- `Awake`/`Start` هر دو دقیقاً قبل از اولین `OnUpdate` اجرا می‌شن (نه با تضمین "همه‌ی Awake ها قبل از همه‌ی Start ها" که یونیتی داره) — برای اکثر اسکریپت‌های ساده فرقی حس نمی‌شه.
+- بدون NuGet package مخصوص اسکریپت — فقط چیزی که MyEngine.Core و خودِ BCL می‌دن در دسترسه.
+
+### Camera Gizmo
+دیگه صحنه‌ی خالی و سردرگم‌کننده نیست. یه آیکون دوربین (تولیدشده، سبک Unity gizmo) الان همیشه سر موقعیت هر `Camera2D` توی Viewport نشون داده می‌شه — مستقل از انتخاب، همیشه یه اندازه‌ی ثابت روی صفحه (مثل دستگیره‌های Gizmo، با زوم کوچیک/بزرگ نمی‌شه)، با اسم GameObject زیرش، و قابل‌کلیک برای انتخاب دوربین.
 
 ---
 
-## Getting Started
+## این آپدیت: باگ اصلیِ «ذخیره نشدن Transform» پیدا و رفع شد ⚠️
+
+### ریشه‌ی واقعی مشکل (نه چیزی که فکر می‌کردم)
+راند قبل حدس زدم مشکل مربوط به reload تصادفیه — اون هم یه باگ واقعی بود و رفعش کردم، ولی نه علتِ اصلیِ چیزی که تو گزارش دادی. بعد از دیدن عکس‌هات، دقیق‌تر گشتم و باگ واقعی رو پیدا کردم:
+
+توی `GameObjectData` (کلاسی که صحنه رو برای ذخیره به JSON تبدیل می‌کنه)، پنج تا مقدار حیاتی —position، Rotation، Scale — این‌جوری تعریف شده بودن:
+```csharp
+public float X, Y, Rotation, ScaleX = 1, ScaleY = 1;
+```
+این یه **field** ساده‌ست، نه یه **property** (`{ get; set; }`). تنظیمات JSON سریالایزر هم `IncludeFields = false` بود (که خودش درسته و نباید عوض بشه). نتیجه: این پنج تا مقدار **هیچ‌وقت** توی فایل `.scene` نوشته نمی‌شدن، و موقع لود هم همیشه به مقدار پیش‌فرض (0,0,0 و مقیاس 1,1) برمی‌گشتن — کاملاً مستقل از این‌که تو چیکار کرده بودی.
+
+یعنی این باگ از همون اول (اولین نسخه‌ی SceneSerializer) وجود داشته، نه چیزی که تازه اضافه شده باشه.
+
+**⚠️ مهم برای پروژه‌ی تستت:** هر صحنه‌ای که قبل از این آپدیت ذخیره کردی، جابه‌جایی/چرخش/مقیاسِ توش عملاً هیچ‌وقت واقعی ذخیره نشده. باید موقعیت آبجکت‌ها رو دوباره بچینی — این دفعه درست ذخیره می‌شه.
+
+**رفع:** تبدیل به property واقعی:
+```csharp
+public float X { get; set; }
+public float Y { get; set; }
+public float Rotation { get; set; }
+public float ScaleX { get; set; } = 1;
+public float ScaleY { get; set; } = 1;
+```
+بعدش کل پروژه رو برای همین الگو (field به‌جای property توی کلاس‌های JSON) گشتم — جای دیگه‌ای تکرار نشده بود؛ همه‌ی DTO های دیگه (`SpriteRendererData`, `Camera2DData`, `ProjectInfo`, `EditorVersionInfo`) از اول درست بودن.
+
+### صحنه‌ی الکی هنگام باز شدن ادیتور حذف شد
+دیگه یه GameObject آبی ساختگی نمی‌سازه. رفتار جدید:
+1. آخرین صحنه‌ای که پروژه توش بود رو باز می‌کنه (یه فایل جدید `ProjectSettings.json` توی ریشه‌ی پروژه این رو بین اجراها نگه می‌داره — نه داخل Assets، چون جزو بازی نیست).
+2. اگه اون صحنه دیگه پیدا نشد (مثلاً حذف شده)، جدیدترین صحنه‌ی موجود توی `Assets/Scenes` رو باز می‌کنه.
+3. اگه پروژه اصلاً هیچ صحنه‌ای نداشت (پروژه‌ی کاملاً تازه)، خودش یه صحنه‌ی جدید (`Main.scene`) توی `Assets/Scenes` می‌سازه و بازش می‌کنه.
+
+هر بار Save یا Open، این رکورد آپدیت می‌شه — یعنی دفعه‌ی بعد که ادیتور رو باز کنی، دقیقاً همون‌جایی که ول کرده بودی ادامه می‌ده.
+
+---
+
+## این آپدیت: رفع ۶ باگ گزارش‌شده از تست
+
+### ۱. «ذخیره نشدن تغییرات جابه‌جایی/اندازه» — علت واقعی پیدا شد
+این در واقع یه باگ معماری بود، نه مشکل سریالایز: اگه صحنه‌ای که در حال ویرایشش بودی رو (مثلاً با دابل‌کلیک دوباره روی همون فایل توی Content Browser، یا کلیک روی تب صحنه) دوباره باز می‌کردی، بدون هیچ هشداری از دیسک reload می‌شد و هر تغییر ذخیره‌نشده بی‌صدا از بین می‌رفت.
+
+**راه‌حل:** یه سیستم dirty-tracking واقعی اضافه شد:
+- `UndoStack` حالا یه event به اسم `Changed` داره که هر Push/Undo/Redo رو گزارش می‌کنه.
+- `EditorState.IsDirty` به این event وصله؛ یعنی به‌محض هر تغییر واقعی در صحنه (نه در Play Mode)، صحنه "dirty" علامت می‌خوره.
+- اگه بخوای صحنه‌ای که تغییرات ذخیره‌نشده داره رو با یه صحنه‌ی دیگه عوض کنی (New/Open/تب/دابل‌کلیک)، یه دیالوگ تأیید واقعی میاد: **Save & Continue / Discard & Continue / Cancel**.
+- باز کردن دوباره‌ی همون صحنه‌ای که همین الان بازه، دیگه اصلاً کاری نمی‌کنه (no-op) — قبلاً این دقیقاً همون چیزی بود که تغییرات رو می‌خورد.
+- عنوان پنجره الان صحنه‌ی فعلی + `*` (وقتی تغییر ذخیره‌نشده هست) رو نشون می‌ده، شبیه هر ادیتور حرفه‌ای دیگه.
+
+### ۲. سیاه شدن ویوپورت هنگام Save Scene / Save As Prefab
+علتش: `AssetDatabase.Refresh()` همه‌ی تکسچرهای لود‌شده رو dispose و دوباره می‌ساخت، ولی SpriteRenderer هایی که قبلاً به اون تکسچرها اشاره می‌کردن آپدیت نمی‌شدن — نتیجه: رفرنس به یه Texture2D از بین‌رفته، که روی صفحه سیاه/خراب رندر می‌شه.
+
+**راه‌حل:** حالا هر فریم، توی `Update()`، صحنه با AssetDatabase دوباره sync می‌شه (`ResolveSceneTextures`). این کار خیلی ارزونه و تضمین می‌کنه حتی اگه یه Refresh کامل هم اتفاق بیفته، قبل از فریم بعدی رندر بشه، رفرنس‌ها تازه‌ن — عملاً هیچ فریم سیاهی اصلاً دیده نمی‌شه.
+
+### ۳ و ۴. مسیر اشتباه صحنه / دوتا فولدر صحنه
+علتش: ساخت صحنه از طریق راست‌کلیک توی Content Browser، صحنه رو توی هر فولدری که در حال مرور بودی می‌ساخت (پیش‌فرض ریشه‌ی Assets)، نه لزوماً `Assets/Scenes` — درحالی‌که `File > Open Scene` فقط داخل `Assets/Scenes` رو نگاه می‌کرد. نتیجه: صحنه‌های سرگردان که پیدا نمی‌شدن.
+
+**راه‌حل:** ساخت صحنه از Content Browser الان همیشه (فارغ از این‌که کجا داری مرور می‌کنی) داخل `Assets/Scenes` می‌ره، و بعدش خودش می‌بردت اونجا که ببینیش. یه ثابت واحد (`EditorState.ScenesRelativeFolder`) این مسیر رو مشخص می‌کنه تا دیگه هیچ‌جا هاردکد پراکنده نشه. `File > Open Scene` هم حالا recursive شده، پس زیرپوشه‌های داخل Scenes هم دیده می‌شن.
+
+### ۵. درگ‌ودراپ از File Explorer به Content Browser کار نمی‌کرد
+این یه محدودیت واقعی MonoGame نبود — طبق مستنداتش، از یه نسخه به بعد `Window.FileDrop` رو داره (هم DesktopGL هم WindowsDX)، فقط تا الان وصل نکرده بودیمش.
+
+**راه‌حل:** الان فایل عکسی که از File Explorer/Finder بکشی روی پنجره‌ی ادیتور:
+- توی فولدر فعلی Content Browser کپی و ایمپورت می‌شه.
+- اگه دقیقاً روی Viewport رها بشه، علاوه بر ایمپورت، یه GameObject با همون اسپرایت هم دقیقاً همون‌جا ساخته می‌شه.
+
+### ۶. درگ‌ودراپ از Content Browser به Hierarchy کار نمی‌کرد
+علتش: اصلاً هیچ drop target ای روی پنل Hierarchy تعریف نشده بود.
+
+**راه‌حل:** یه نوار مشخص («Drop a texture or prefab here...») بالای درخت Hierarchy اضافه شد که تکسچر/پرفب رو قبول می‌کنه (به‌جای این‌که کل پنل رو drop target کنیم، که با وجود ردیف‌های زیاد hit-testش غیرقابل‌اعتماد می‌شد).
+
+### پاکسازی جانبی
+منطق «تکسچر/پرفب رو تبدیل به GameObject کن» که قبلاً سه‌جا (Viewport، Content Browser، حالا Hierarchy) کپی-پیست شده بود، توی یه کلاس مشترک (`AssetDropHandler`) جمع شد — یعنی هر سه‌تا دقیقاً یک رفتار دارن و باگ بعدی رو فقط یه‌جا باید فیکس کرد.
+
+---
+
+## این آپدیت: لانچر بازطراحی شد (Avalonia UI)
+
+لانچر از صفر با **Avalonia UI 11.3** (نه MonoGame/ImGui) بازنویسی شد — چون لانچر هیچ Viewport زنده‌ای نداره، مشکلی که ادیتور رو برای این‌جور فریم‌ورک‌ها نامناسب می‌کرد (نیاز به embed کردن رندر MonoGame) اینجا اصلاً وجود نداره؛ در عوض یه فولدرپیکر واقعی، ظاهر تمیزتر، و UI حرفه‌ای‌تر گیرمون میاد.
+
+**نکته‌ی مهم درباره‌ی اسم:** چون تغییر namespace/پوشه‌بندی `MyEngine` توی هسته و ادیتور دردسرساز بود، فقط **نمایش** عوض شده — هرجا کاربر می‌بینه نوشته "PreyEngine"، ولی کد و ساختار پروژه هنوز `MyEngine` هست. هیچ زیرساختی دست نخورده.
+
+### چیزی که اضافه شد
+
+- **Splash Screen**: موقع باز شدن، پروژه‌ها و نسخه‌های ادیتور رو لود/چک می‌کنه، بعد MainWindow رو باز می‌کنه.
+- **مدیریت نسخه‌ی ادیتور (Editor Version Manager)**: یه فایل جدید `EditorVersions.json` (کنار `projects.json`، توی همون پوشه‌ی AppData) لیست نسخه‌های نصب‌شده‌ی ادیتور رو نگه می‌داره. هر نسخه فقط یه *پوشه* رو رفرنس می‌کنه (خروجی build ادیتور)، نه یه فایل exe تنها — یعنی آپدیت بعدی فقط "این پوشه رو با build جدید عوض کن یا یه نسخه‌ی جدید اضافه کن".
+- هر پروژه توی لیست، یه dropdown کنارش داره که نشون می‌ده با کدوم نسخه‌ی ادیتور باز می‌شه؛ می‌شه دستی عوضش کرد.
+- اولین بار که لانچر اجرا بشه و هیچ نسخه‌ای ثبت نشده باشه، خودش دنبال build دیتِ dev (کنار خودِ Launcher) می‌گرده و به‌عنوان نسخه‌ی پیش‌فرض ثبتش می‌کنه — دقیقاً همون heuristic قبلی، فقط این‌بار پوشه‌محور.
+- فولدرپیکر واقعی (نه تایپ کردن دستی مسیر) برای همه‌ی مسیرها.
+- منطق ساخت پوشه‌ی پروژه (`Assets/`, `Assets/Scenes/`, `Assets/Prefabs/`) عیناً از نسخه‌ی قبلی منتقل شد، بدون تغییر.
+
+### لوگو
+
+یه لوگوی ساده و موقت (`Assets/logo.png`) گذاشته شده تا معطل نمونیم. هروقت فایل لوگوی واقعی رو فرستادی، همین یه فایل عوض می‌شه، به جای دیگه‌ای دست نمی‌خوره.
+
+### اجرا
 
 ```bash
-git clone https://github.com/StudioPrey/PreyEngine-Source.git
-cd PreyEngine-Source
-
-dotnet restore
-dotnet build
-
-# Run Editor
-dotnet run --project src/MyEngine.Editor
-
-# Run Launcher
 dotnet run --project src/MyEngine.Launcher
 ```
 
----
-
-## License & Attribution
-
-This project is licensed under the **MIT License** with an additional **mandatory attribution** clause.
-
-You are free to use, modify, and distribute this software, including for commercial purposes, provided that:
-
-1. The original copyright notice is preserved.
-2. Clear credit is given to **PreyEngine** by **Arian Shahmohammadi (Easyprey Studio)** in documentation, credits, about screens, or equivalent places.
-
-See the [LICENSE](LICENSE) file for the full text.
+> نکته: چون Avalonia یه پکیج تازه‌ست که در این پروژه اضافه شده، بار اول `dotnet restore` باید پکیج‌های Avalonia رو هم دانلود کنه (اینترنت لازم داره، مثل قبل).
 
 ---
 
-## Author
+## این آپدیت (v0.6): Undo/Redo، Content Browser واقعی، Gizmo Local، Prefab کامل‌تر
 
-**Arian Shahmohammadi**  
-**Easyprey Studio** / StudioPrey
+### Undo/Redo
+- استک کامل Undo/Redo (`MyEngine.Editor/UndoSystem/`) با سقف ۲۰۰ عملیات.
+- پوشش می‌ده: تغییر Transform/رنگ/سایز/فعال‌بودن از Inspector، ساخت/حذف GameObject، Add Component، جابه‌جایی/چرخش/تغییر‌اندازه با Gizmo.
+- کلید میانبر `Ctrl+Z` و `Ctrl+Y` (یا `Ctrl+Shift+Z`)، دکمه‌های Undo/Redo بالای Viewport، و منوی Edit.
+- هر درگ (مثلاً کشیدن Position توی Inspector یا جابه‌جایی با Gizmo) فقط **یک** ورودی توی تاریخچه ثبت می‌کنه، نه یکی به‌ازای هر فریم.
+- وارد/خارج شدن از Play Mode تاریخچه رو پاک می‌کنه (چون صحنه‌ی موقتیه و منطقی نیست بشه Undo کرد به قبل از Play).
 
-For updates, collaboration, or commercial inquiries, contact Easyprey Studio through official channels.
+### Content Browser — پوشه‌بندی و ساخت به سبک یونیتی
+- صحنه‌ها و پرفب‌ها الان داخل `Assets/` هستن (مثل هر asset دیگه‌ای)، نه یه پوشه‌ی جدا — دقیقاً مثل ساختار پروژه‌ی یونیتی.
+- Content Browser الان پوشه‌بندی واقعی داره: breadcrumb بالا، دابل‌کلیک روی پوشه برای وارد شدن، دکمه‌ی `..` برای برگشت.
+- راست‌کلیک روی فضای خالی → **Create > Folder** یا **Create > Scene**: دقیقاً مثل یونیتی، یه باکس خاکستری برای گرفتن اسم ظاهر می‌شه، Enter یا کلیک بیرون تأییدش می‌کنه، Escape لغوش می‌کنه.
+- دابل‌کلیک روی یه فایل `.scene` همون‌جا بازش می‌کنه.
+
+### Gizmo — حالت Local اضافه شد
+- دکمه‌ی **World/Local** کنار دکمه‌های Move/Rotate/Scale: در حالت Local، محورهای Move با چرخش خودِ آبجکت هماهنگ می‌شن (نه همیشه افقی/عمودی مطلق).
+- Scale همیشه Local می‌مونه (چون Scale غیریکنواخت در فضای World اصلاً مفهوم نداره بدون Shear).
+
+### Prefab — Apply / Revert / Unlink
+- هر GameObject ای که از یه پرفب ساخته شده باشه، توی Hierarchy با رنگ آبی مشخص می‌شه.
+- توی Inspector سه‌تا دکمه: **Apply to Prefab** (تغییرات این نمونه رو برمی‌گردونه به فایل پرفب)، **Revert** (این نمونه رو با فایل پرفب یکی می‌کنه، ولی Position/Rotation/Scale فعلیش حفظ می‌شه)، **Unlink** (ارتباطش با پرفب رو قطع می‌کنه، خودش دست‌نخورده می‌مونه).
+- محدودیت شناخته‌شده (که در README قبلی هم بود): این هنوز override-per-property نداره — Apply/Revert کل آبجکت رو یکجا جابه‌جا می‌کنه، نه فیلد به فیلد.
+
+### Grid حرفه‌ای توی Viewport
+- خطوط grid تطبیقی: فاصله‌شون خودکار زوم می‌خوره طوری که همیشه بین ۱۶ تا ۱۲۸ پیکسل روی صفحه بمونه (نه خیلی شلوغ، نه خیلی خالی).
+- محور X (قرمز) و Y (سبز) پررنگ‌تر مشخصن، هر خط چهارم هم کمی پررنگ‌تره.
+- همیشه پشت همه‌ی GameObject ها رسم می‌شه (مستقل از SortingOrder).
+- چک‌باکس **Grid** بالای Viewport برای خاموش/روشن کردنش.
+
+### نوار تب صحنه‌ها بالای Viewport
+- هر صحنه‌ای که این‌سشن باز کردی (از File > Open، یا دابل‌کلیک توی Content Browser)، یه تب بالای Viewport می‌گیره.
+- کلیک روی تب = جابه‌جایی سریع بین صحنه‌ها بدون رفتن توی منو. راست‌کلیک روی تب = Close Tab (فقط از نوار حذفش می‌کنه، فایل دست‌نخورده می‌مونه).
 
 ---
 
-## Disclaimer
+## آپدیت اخیر (رفع باگ‌های build)
 
-This is a delayed community snapshot (STS 11.3).  
-It is provided as-is. Development continues on the mainline according to the delay policy described above.
+دو ارور کامپایل که فرستادی (`CS1501: No overload for method 'SetData'`) از اینجا میومد: `VertexBuffer`/`IndexBuffer` معمولی توی مونوگیم اصلاً overload‌ای که `SetDataOptions` بگیره ندارن (اون فقط مال `DynamicVertexBuffer`/`DynamicIndexBuffer`ه)، و علاوه بر اون داشتیم مستقیم `IntPtr` (بافر خام ImGui) رو به‌جای آرایه‌ی مدیریت‌شده‌ی C# پاس می‌دادیم. کل `ImGuiRenderer.cs` رو با نمونه‌ی رسمی و فعلی خود مخزن `ImGuiNET/ImGui.NET` (که تازه از گیت‌هابش کشیدم و مطابقش کردم) بازنویسی کردم، و در همین مرور:
 
-Thank you for your interest in PreyEngine.
+- **ورژن ImGui.NET** توی هر سه `.csproj` از `1.90.*` (قدیمی) به `1.91.6.1` (آخرین نسخه‌ی منتشرشده‌ی فعلی) آپدیت شد.
+- **`ImGuiChildFlags.Border`** در `LauncherApp.cs` به `ImGuiChildFlags.Borders` تغییر کرد (این enum توی Dear ImGui به جمع تغییر نام داده).
+- نگاشت کیبورد به ImGui کامل‌تر و مطابق نمونه‌ی رسمی شد (قبلاً خیلی از کلیدها مثل کلیدهای Oem، Numpad، F13-F24 پوشش داده نمی‌شدن).
+- ثبت رویداد `Window.TextInput` حالا داخل خودِ `ImGuiRenderer` انجام می‌شه (مثل نمونه‌ی رسمی)، پس خط تکراری‌اش از `EditorApp.cs` و `LauncherApp.cs` حذف شد.
+
+۷۲ مشکلی که توی پنل Problems می‌دیدی احتمالاً بیشترش از همین دو ارور اصلی سرچشمه می‌گرفت — چون `MyEngine.Editor` و `MyEngine.Launcher` هر دو به `MyEngine.EditorFramework` رفرنس دارن، وقتی اون کامپایل نشه کل بقیه‌ی پروژه هم پشت سرش خطا می‌ده.
+
+بقیه‌ی API هایی که استفاده کردیم (drag & drop payload، `DockSpaceOverViewport`، `ImageButton`، `MenuItem` overloads) رو هم در حد ممکن با مثال‌های واقعی از گیت‌هاب و مستندات چک کردم؛ ولی چون این محیط نه dotnet SDK داره نه اینترنت برای NuGet restore، نمی‌تونم ۱۰۰٪ کامپایل رو تضمین کنم. اگه بعد از `dotnet restore && dotnet build` باز خطا گرفتی، پیامش رو کامل بفرست (رو ترمینال کپی کن یا اسکرین‌شات مثل قبل) تا سریع رفعش کنیم.
+
+---
+
+## ساختار سالوشن
+
+```
+MyEngine.sln
+src/
+  MyEngine.Core/            → خودِ انجین: ECS، Scene، رندر اسپرایت، دوربین، فیزیک ۲بعدی، Prefab/Scene serialization
+  MyEngine.EditorFramework/ → پل بین ImGui و MonoGame (ImGuiRenderer) — بین ادیتور و لانچر مشترک است
+  MyEngine.Editor/          → برنامه‌ی ادیتور
+  MyEngine.Launcher/        → لانچر برای مدیریت و ساخت پروژه‌ها
+```
+
+## چیزی که در v0.5 اضافه شد
+
+### ۱. Asset Pipeline
+- `AssetDatabase` (در `MyEngine.Editor/AssetDatabase.cs`) پوشه‌ی `Assets/` پروژه را اسکن می‌کند.
+- فایل‌های PNG/JPG/BMP مستقیماً با `Texture2D.FromStream` لود می‌شوند — بدون نیاز به Content Pipeline/`.mgcb build`، دقیقاً مثل Unity: فایل رو بنداز داخل پوشه، همون لحظه ایمپورت میشه.
+- یک `FileSystemWatcher` تغییرات پوشه رو گوش میده؛ فایل جدید/تغییریافته/حذف‌شده خودکار (رو فریم بعدی از Update، نه از ترد بک‌گراند) دوباره ایمپورت میشه. اگر watcher به هر دلیلی کار نکرد (مثلاً روی بعضی درایوهای شبکه)، دکمه‌ی **Refresh** توی Content Browser جایگزینشه.
+- پنل جدید **Content Browser**: گرید thumbnail از همه‌ی asset ها (عکس واقعی برای تکسچرها).
+- انتخاب یک asset، Inspector رو عوض می‌کنه و پیش‌نمایش بزرگ‌تر + سایز فایل نشون میده.
+- Drag & Drop: از Content Browser یک تکسچر رو بکش و توی Viewport رها کن → یک GameObject جدید با SpriteRenderer دقیقاً همونجا ساخته میشه. یا مستقیم روی فیلد Texture توی Inspector رهاش کن تا به آبجکت انتخاب‌شده وصل بشه.
+
+### ۲. Play Mode واقعی
+- `EditorState.StartPlay()` یک کپی کامل از صحنه می‌سازه (`SceneSerializer.Clone`، Id ها حفظ میشن تا انتخاب‌شده جابه‌جا نشه) و توی `PlayScene` نگه می‌داره.
+- همه‌ی پنل‌ها (Hierarchy/Inspector/Viewport) روی `ActiveScene` کار می‌کنن که خودش `PlayScene ?? EditScene` هست.
+- با Stop، `PlayScene` دور ریخته میشه و همه چی به `EditScene` (که اصلاً دست نخورده بود) برمی‌گرده — دقیقاً رفتار Unity.
+- در حین Play، منوهای New/Save/Open Scene غیرفعال میشن تا اشتباهی روی صحنه‌ی موقت save نگیری.
+
+### ۳. Prefab
+- راست‌کلیک روی هر GameObject توی Hierarchy → **Save As Prefab...** یک فایل `.prefab` (JSON، همون فرمت Scene) توی پوشه‌ی `Prefabs/` پروژه می‌سازه.
+- پرفب‌ها توی Content Browser دیده میشن؛ درگ‌ودراپ روی Viewport یا دابل‌کلیک، یک instance جدید (با Id های تازه، پس چندبار میشه instantiate کرد) می‌سازه.
+- محدودیت شناخته‌شده: لینک زنده به فایل prefab نیست (اگه بعداً prefab رو عوض کنی، instance های قبلی آپدیت نمیشن) — این "prefab override" یکی از آیتم‌های roadmap زیره.
+
+### ۴. Gizmo (Move / Rotate / Scale)
+- توی نوار بالای Viewport یا با کلیدهای **W/E/R** بین حالت‌ها سوییچ کن.
+- Move: دستگیره‌ی مرکز (آزاد) + محور X (قرمز) + محور Y (سبز).
+- Rotate: یک حلقه‌ی دایره‌ای دور آبجکت؛ بکش تا بچرخه.
+- Scale: دستگیره‌ی مرکز (یکنواخت) + دو دستگیره‌ی محوری.
+- محدودیت v0.5: محورها همیشه صاف (world-space) کشیده میشن، نه چرخیده با خود آبجکت یا دوربین — تا وقتی دوربین صحنه نچرخه، دقیقاً همونی هست که انتظار داری.
+
+### ۵. Camera بهتر
+- `Camera2D` حالا `FollowTarget` (یک GameObject)، `FollowSmoothing` و `FollowOffset` داره.
+- توی Inspector دکمه‌ی **Follow Selected** هست که همون آبجکت انتخاب‌شده رو هدف دوربین می‌کنه.
+- Follow فقط توی Play Mode واقعاً اجرا میشه (چون از `Update` کامپوننت میاد) — دقیقاً مثل هر اسکریپت دیگه‌ای.
+
+## باگ‌هایی که در این نسخه رفع شد
+- `Scene.Destroy` مرجع `GameObject.Scene` رو پاک نمی‌کرد؛ الان درست null میشه.
+- `SpriteRenderer.SortingOrder` قبلاً ذخیره می‌شد ولی هیچ اثری روی ترتیب رسم نداشت (چون `SpriteSortMode.Deferred` بود) — الان با `BackToFront` + `layerDepth` واقعاً کار می‌کنه.
+- `SceneSerializer` مسیر تکسچر (`TexturePath`) رو می‌نوشت ولی هیچ‌وقت نمی‌خوندش — الان کامل wire شده و AssetDatabase بعد از هر Load/Clone دوباره لینکش می‌کنه.
+- کلون کردن صحنه (`FromData`) همیشه Id های تصادفی تازه می‌ساخت، که یعنی انتخاب/رفرنس‌ها بعد از Save/Load یا وارد Play شدن از دست می‌رفت — الان `GameObject`/`Scene.CreateGameObject` می‌تونن Id مشخص بگیرن و رفرنس‌ها (parent، `Camera2D.FollowTarget`) هم توی یک پاس دوم درست wire میشن.
+
+## ECS — تأیید طراحی
+`GameObject` یک ظرف خالیه: فقط Id، Name، Enabled، Transform و لیست Component ها رو نگه می‌داره؛ هیچ رفتاری خودش نداره.
+هر رفتار/ویژگی (رندر، دوربین، فیزیک، در آینده انیمیشن/اسکریپت بازی) با ارث‌بری از `Component` و override کردن `Update`/`Draw` اضافه میشه. این طراحی دست‌نخورده باقی موند و در این نسخه محکم‌تر شد (constructor با Id مشخص، helper های `GetComponents<T>`/`RemoveComponent<T>`).
+
+## اجرا (بدون تغییر نسبت به قبل)
+
+```bash
+cd MyEngine
+dotnet restore
+dotnet build
+dotnet run --project src/MyEngine.Editor
+# یا:
+dotnet run --project src/MyEngine.Launcher
+```
+
+> ⚠️ همین‌جا هم بگم: این کد در محیطی نوشته شده که نه اینترنت داشت نه dotnet SDK نصب بود، پس **کامپایل واقعی نشده**. یک مرور کامل دستی روی همه‌ی فایل‌ها انجام شد (namespace ها، امضای متدهای ImGui.NET/MonoGame، تعادل براکت‌ها) ولی بازم اگه بعد از build چیزی گیر داد، پیام خطا رو بفرست تا سریع حلش کنیم.
+
+## قدم‌های بعدی پیشنهادی
+
+قبل از رفتن سراغ ظاهر لانچر/بازاریابی/اوپن‌سورس، این چندتا از نظر من ارزش داره چون مستقیم روی "اولین تجربه‌ی کاربر" اثر می‌ذارن:
+
+۱. **Undo/Redo** — نبودنش توی یه ادیتور که مردم باهاش کار می‌کنن خیلی زود اذیت‌کننده میشه؛ برای اوپن‌سورس کردن تقریباً حیاتیه.
+۲. **Folder Tree توی Content Browser** — الان همه‌ی asset ها فلت نمایش داده میشن؛ برای پروژه‌های واقعی به‌زودی به‌هم‌ریخته میشه.
+۳. **Prefab Override/Live-Link** — تا الان prefab فقط یه "استامپ" یک‌باره‌ست.
+۴. **Runtime مستقل** — یک exe جدا که فقط به `MyEngine.Core` وابسته‌ست و صحنه‌ی build‌شده رو بدون ادیتور اجرا می‌کنه؛ این همون چیزیه که در نهایت به‌عنوان "بازی خروجی گرفته‌شده" به دست بازیکن می‌رسه.
+۵. **Input System ساده** (`Input.IsKeyDown`، `Input.MousePosition` و امثالش) — چون الان هیچ‌ ابزاری برای نوشتن رفتار بازی (اسکریپت پلیر و غیره) نداریم؛ این عملاً بلوکِ بعدیه که باعث میشه بشه یه بازی واقعی باهاش ساخت.
+۶. **Local-space gizmo + پشتیبانی از چرخش دوربین** — رفع محدودیت فعلی gizmo.
+
+بعد از اینا، فکر می‌کنم برای مرحله‌ی ظاهر/بازاریابی/اوپن‌سورس آماده‌ست. بگو کدوم‌یک از این‌ها رو اول بریم سراغش، یا اگه بعد از build ارور گرفتی همونو بفرست.
