@@ -27,10 +27,10 @@ public static class ViewportPanel
 {
     public static ViewportResult Draw(EditorState state, IntPtr sceneTextureId)
     {
-        ImGui.Begin("Viewport", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse);
+        EditorLayout.PinViewport();
+        ImGui.Begin("Viewport", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse | EditorLayout.PanelFlags);
 
         var requestedSwitch = DrawSceneTabs(state);
-        DrawToolbar(state);
 
         var avail = ImGui.GetContentRegionAvail();
         avail.Y = MathF.Max(avail.Y, 1);
@@ -73,8 +73,8 @@ public static class ViewportPanel
         };
     }
 
-    /// <summary>Small strip above the toolbar listing scenes opened this session, for quick manual switching
-    /// (right-click a tab to close it — this only removes it from the strip, it never touches the file).</summary>
+    /// <summary>Small strip listing scenes opened this session, for quick manual switching (right-click a
+    /// tab to close it — this only removes it from the strip, it never touches the file).</summary>
     private static string? DrawSceneTabs(EditorState state)
     {
         if (state.SceneTabs.Count == 0) return null;
@@ -105,80 +105,5 @@ public static class ViewportPanel
 
         if (tabToClose != null) state.CloseSceneTab(tabToClose);
         return requestedSwitch;
-    }
-
-    private static void DrawToolbar(EditorState state)
-    {
-        if (ImGui.Button(state.IsPlaying ? "Stop" : "Play"))
-            state.TogglePlay();
-
-        ImGui.SameLine();
-        DrawUndoRedoButtons(state);
-
-        ImGui.SameLine();
-        ImGui.TextDisabled("|");
-        ImGui.SameLine();
-
-        DrawGizmoModeButton(state, GizmoMode.Move, "Move (W)");
-        ImGui.SameLine();
-        DrawGizmoModeButton(state, GizmoMode.Rotate, "Rotate (E)");
-        ImGui.SameLine();
-        DrawGizmoModeButton(state, GizmoMode.Scale, "Scale (R)");
-
-        ImGui.SameLine();
-        ImGui.TextDisabled("|");
-        ImGui.SameLine();
-        DrawGizmoSpaceToggle(state);
-
-        ImGui.SameLine();
-        ImGui.TextDisabled("|");
-        ImGui.SameLine();
-        bool showGrid = state.ShowGrid;
-        if (ImGui.Checkbox("Grid", ref showGrid)) state.ShowGrid = showGrid;
-
-        ImGui.SameLine();
-        bool showColliders = state.ShowColliders;
-        if (ImGui.Checkbox("Colliders", ref showColliders)) state.ShowColliders = showColliders;
-
-        if (!ImGui.GetIO().WantTextInput)
-        {
-            if (ImGui.IsKeyPressed(ImGuiKey.W)) state.Gizmo = GizmoMode.Move;
-            if (ImGui.IsKeyPressed(ImGuiKey.E)) state.Gizmo = GizmoMode.Rotate;
-            if (ImGui.IsKeyPressed(ImGuiKey.R)) state.Gizmo = GizmoMode.Scale;
-        }
-    }
-
-    private static void DrawUndoRedoButtons(EditorState state)
-    {
-        ImGui.BeginDisabled(!state.Undo.CanUndo);
-        if (ImGui.Button("Undo")) state.PerformUndo();
-        if (ImGui.IsItemHovered() && state.Undo.NextUndoDescription != null)
-            ImGui.SetTooltip(state.Undo.NextUndoDescription);
-        ImGui.EndDisabled();
-
-        ImGui.SameLine();
-
-        ImGui.BeginDisabled(!state.Undo.CanRedo);
-        if (ImGui.Button("Redo")) state.PerformRedo();
-        if (ImGui.IsItemHovered() && state.Undo.NextRedoDescription != null)
-            ImGui.SetTooltip(state.Undo.NextRedoDescription);
-        ImGui.EndDisabled();
-    }
-
-    private static void DrawGizmoModeButton(EditorState state, GizmoMode mode, string label)
-    {
-        bool active = state.Gizmo == mode;
-        if (active) ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(0.26f, 0.45f, 0.75f, 0.9f));
-        if (ImGui.Button(label)) state.Gizmo = mode;
-        if (active) ImGui.PopStyleColor();
-    }
-
-    private static void DrawGizmoSpaceToggle(EditorState state)
-    {
-        string label = state.GizmoSpace == GizmoSpace.World ? "World" : "Local";
-        if (ImGui.Button(label))
-            state.GizmoSpace = state.GizmoSpace == GizmoSpace.World ? GizmoSpace.Local : GizmoSpace.World;
-        if (ImGui.IsItemHovered())
-            ImGui.SetTooltip("Click to toggle Move-gizmo axis space (Scale is always local).");
     }
 }

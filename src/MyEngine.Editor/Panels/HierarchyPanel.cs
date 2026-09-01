@@ -11,7 +11,8 @@ public static class HierarchyPanel
 
     public static void Draw(EditorState state)
     {
-        ImGui.Begin("Hierarchy");
+        EditorLayout.PinHierarchy();
+        ImGui.Begin("Hierarchy", EditorLayout.PanelFlags);
 
         if (state.IsPlaying)
         {

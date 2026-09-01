@@ -70,6 +70,46 @@ public static class ScriptCompiler
         return new ScriptCompilationResult { Success = true, ScriptTypes = scriptTypes };
     }
 
+    /// <summary>Compiles every .cs file under <paramref name="assetsRoot"/> straight to a real assembly
+    /// file on disk, instead of loading it into this process — used by the Build pipeline, since a shipped
+    /// game needs an actual .dll to ship next to its executable, not a Type list living only in the
+    /// Editor's own process. Doesn't touch ScriptRegistry; the Editor keeps whatever was already registered
+    /// for its own Play Mode, and the Runtime registers this file's types itself when it loads them.</summary>
+    public static ScriptCompilationResult CompileToFile(string assetsRoot, string outputDllPath)
+    {
+        var scriptFiles = Directory.Exists(assetsRoot)
+            ? Directory.GetFiles(assetsRoot, "*.cs", SearchOption.AllDirectories)
+            : Array.Empty<string>();
+
+        if (scriptFiles.Length == 0)
+            return new ScriptCompilationResult { Success = true };
+
+        var syntaxTrees = scriptFiles
+            .Select(path => CSharpSyntaxTree.ParseText(File.ReadAllText(path), ParseOptions, path))
+            .ToArray();
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName: Path.GetFileNameWithoutExtension(outputDllPath),
+            syntaxTrees: syntaxTrees,
+            references: BuildReferences(),
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        Directory.CreateDirectory(Path.GetDirectoryName(outputDllPath)!);
+        using var fileStream = File.Create(outputDllPath);
+        var emitResult = compilation.Emit(fileStream);
+
+        if (!emitResult.Success)
+        {
+            var errors = emitResult.Diagnostics
+                .Where(d => d.Severity == DiagnosticSeverity.Error)
+                .Select(d => d.ToString())
+                .ToList();
+            return new ScriptCompilationResult { Success = false, Errors = errors };
+        }
+
+        return new ScriptCompilationResult { Success = true };
+    }
+
     /// <summary>
     /// Assembles the reference set scripts compile against: the full BCL reference-assembly list the
     /// .NET runtime already knows about (TRUSTED_PLATFORM_ASSEMBLIES — more complete and reliable than

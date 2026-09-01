@@ -15,7 +15,8 @@ public static class InspectorPanel
 {
     public static void Draw(EditorState state)
     {
-        ImGui.Begin("Inspector");
+        EditorLayout.PinInspector();
+        ImGui.Begin("Inspector", EditorLayout.PanelFlags);
 
         if (state.SelectedAsset != null)
             DrawAssetInspector(state.SelectedAsset, state);

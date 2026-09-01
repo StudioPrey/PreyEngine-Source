@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyEngine.Editor", "src\MyEn
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyEngine.Launcher", "src\MyEngine.Launcher\MyEngine.Launcher.csproj", "{242BE5C3-175E-4D8A-BA7A-3D7D9F9777DB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyEngine.Runtime", "src\MyEngine.Runtime\MyEngine.Runtime.csproj", "{2B8D4001-C2E9-4B6D-8206-C8FE9593788F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,10 @@ Global
 		{242BE5C3-175E-4D8A-BA7A-3D7D9F9777DB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{242BE5C3-175E-4D8A-BA7A-3D7D9F9777DB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{242BE5C3-175E-4D8A-BA7A-3D7D9F9777DB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2B8D4001-C2E9-4B6D-8206-C8FE9593788F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2B8D4001-C2E9-4B6D-8206-C8FE9593788F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2B8D4001-C2E9-4B6D-8206-C8FE9593788F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2B8D4001-C2E9-4B6D-8206-C8FE9593788F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

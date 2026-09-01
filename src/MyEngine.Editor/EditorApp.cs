@@ -7,6 +7,7 @@ using MyEngine.Core.Components;
 using MyEngine.Core.Rendering;
 using MyEngine.Core.SceneSystem;
 using MyEngine.Core.Scripting;
+using MyEngine.Editor.Build;
 using MyEngine.Editor.Panels;
 using MyEngine.Editor.Scripting;
 using MyEngine.EditorFramework;
@@ -56,6 +57,10 @@ public class EditorApp : Game
     private readonly ConcurrentQueue<ScriptCompilationResult> _pendingCompileResults = new();
     private Action? _onCompileComplete;
 
+    private bool _isBuilding;
+    private readonly ConcurrentQueue<BuildResult> _pendingBuildResults = new();
+    private bool _showBuildSettings;
+
     public EditorApp(string projectPath)
     {
         _projectPath = projectPath;
@@ -75,7 +80,9 @@ public class EditorApp : Game
         RenderContext.Initialize(GraphicsDevice);
 
         _imGui = new ImGuiRenderer(this);
+        EditorTheme.ApplyFont();
         _imGui.RebuildFontAtlas();
+        EditorTheme.Apply();
         _cameraIcons = new CameraIconRenderer(GraphicsDevice, _imGui);
 
         var assets = new AssetDatabase(_projectPath, GraphicsDevice, _imGui);
@@ -140,6 +147,7 @@ public class EditorApp : Game
     protected override void Update(GameTime gameTime)
     {
         ProcessCompileResults();
+        ProcessBuildResults();
 
         _state.Assets.ProcessPendingChanges();
 
@@ -225,6 +233,39 @@ public class EditorApp : Game
             var callback = _onCompileComplete;
             _onCompileComplete = null;
             callback?.Invoke();
+        }
+    }
+
+    /// <summary>Kicks off a background standalone build (see ProjectBuilder) — mirrors
+    /// TriggerScriptCompilation's background-thread pattern so the multi-second `dotnet publish` step
+    /// doesn't freeze the UI. Ignored if a build is already running.</summary>
+    private void TriggerBuild()
+    {
+        if (_isBuilding) return;
+        _isBuilding = true;
+        _state.LogMessage($"Building '{_projectSettings.GameName}'...");
+
+        var projectPath = _projectPath;
+        var settingsSnapshot = _projectSettings; // ProjectSettings is a plain data holder; safe to read from the background thread
+        Task.Run(() =>
+        {
+            var result = ProjectBuilder.Build(projectPath, settingsSnapshot);
+            _pendingBuildResults.Enqueue(result);
+        });
+    }
+
+    private void ProcessBuildResults()
+    {
+        while (_pendingBuildResults.TryDequeue(out var result))
+        {
+            _isBuilding = false;
+
+            foreach (var line in result.LogLines)
+                _state.LogMessage(line);
+
+            _state.LogMessage(result.Success
+                ? $"Build succeeded → {result.OutputDirectory}"
+                : $"Build FAILED: {result.Message}");
         }
     }
 
@@ -370,9 +411,10 @@ public class EditorApp : Game
 
     private void BuildUI()
     {
-        ImGui.DockSpaceOverViewport(0, ImGui.GetMainViewport(), ImGuiDockNodeFlags.PassthruCentralNode);
+        EditorLayout.Refresh();
 
         DrawMainMenuBar();
+        Toolbar.Draw(_state);
 
         HierarchyPanel.Draw(_state);
         InspectorPanel.Draw(_state);
@@ -576,6 +618,11 @@ public class EditorApp : Game
             }
 
             ImGui.Separator();
+            if (ImGui.MenuItem("Build Settings...")) _showBuildSettings = true;
+            if (ImGui.MenuItem("Build", string.Empty, false, editingAllowed && !_isBuilding))
+                TriggerBuild();
+
+            ImGui.Separator();
             if (ImGui.MenuItem("Exit")) Exit();
 
             ImGui.EndMenu();
@@ -598,6 +645,59 @@ public class EditorApp : Game
         }
 
         ImGui.EndMainMenuBar();
+
+        DrawBuildSettingsPopup();
+    }
+
+    private void DrawBuildSettingsPopup()
+    {
+        if (_showBuildSettings)
+        {
+            ImGui.OpenPopup("Build Settings");
+            _showBuildSettings = false;
+        }
+
+        ImGui.SetNextWindowSize(new System.Numerics.Vector2(420f, 0f));
+        if (!ImGui.BeginPopupModal("Build Settings", ImGuiWindowFlags.NoResize)) return;
+
+        // ImGui.InputText needs a ref to a live string variable, and C# can't ref a property directly —
+        // each field is copied into a local, edited there, then written back to ProjectSettings only when
+        // InputText reports a change this frame (which, without EnterReturnsTrue, is every keystroke).
+        string gameName = _projectSettings.GameName;
+        if (ImGui.InputText("Game Name", ref gameName, 64)) _projectSettings.GameName = gameName;
+
+        string version = _projectSettings.GameVersion;
+        if (ImGui.InputText("Version", ref version, 32)) _projectSettings.GameVersion = version;
+
+        var width = _projectSettings.WindowWidth;
+        if (ImGui.InputInt("Window Width", ref width)) _projectSettings.WindowWidth = Math.Max(320, width);
+        var height = _projectSettings.WindowHeight;
+        if (ImGui.InputInt("Window Height", ref height)) _projectSettings.WindowHeight = Math.Max(240, height);
+
+        bool fullscreen = _projectSettings.Fullscreen;
+        if (ImGui.Checkbox("Start Fullscreen", ref fullscreen)) _projectSettings.Fullscreen = fullscreen;
+
+        ImGui.Spacing();
+        string iconPath = _projectSettings.IconPath;
+        if (ImGui.InputText("Icon Path (.ico)", ref iconPath, 260)) _projectSettings.IconPath = iconPath;
+        ImGui.TextDisabled("Relative to the project folder. Leave empty to use MyEngine's default icon.");
+
+        string bootScene = _projectSettings.BootScenePath;
+        if (ImGui.InputText("Boot Scene", ref bootScene, 260)) _projectSettings.BootScenePath = bootScene;
+        ImGui.TextDisabled("Relative to Assets/, e.g. Scenes/Main.scene. Leave empty to use the last-opened scene.");
+
+        ImGui.Spacing();
+        ImGui.Separator();
+        if (ImGui.Button("Save", new System.Numerics.Vector2(120f, 0f)))
+        {
+            _projectSettings.Save(_projectPath);
+            ImGui.CloseCurrentPopup();
+        }
+        ImGui.SameLine();
+        if (ImGui.Button("Close", new System.Numerics.Vector2(120f, 0f)))
+            ImGui.CloseCurrentPopup();
+
+        ImGui.EndPopup();
     }
 
     private static string DescribeSuffix(string? description) => description != null ? $" ({description})" : "";

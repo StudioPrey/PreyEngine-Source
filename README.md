@@ -1,7 +1,7 @@
 # PreyEngine Source (Community Edition)
 
 **LTS 1 — Eternal Rain**  
-**Snapshot: LTS 1.1**
+**Snapshot: LTS 1.3.41**
 
 **PreyEngine** is a custom 2D game engine built with **MonoGame** + **ImGui.NET**.  
 Created and maintained by **Arian Shahmohammadi**, founder of **Easyprey Studio**.
@@ -13,7 +13,7 @@ It is published under the MIT License with a mandatory attribution requirement.
 
 ## About
 
-PreyEngine is an Iranian-made 2D game engine designed around a clean C# architecture and a Unity-like workflow. **LTS 1 (Eternal Rain)** is the first Long-Term Support generation and focuses on stability and refinement. This snapshot (**LTS 1.1**) adds a full custom 2D physics stack on top of the existing editor, input, and scripting foundations.
+PreyEngine is an Iranian-made 2D game engine designed around a clean C# architecture and a Unity-like workflow. **LTS 1 (Eternal Rain)** is the first Long-Term Support generation and focuses on stability and refinement. This snapshot (**LTS 1.3.41**) adds a full **standalone Runtime / Build pipeline** so you can produce a real player executable without the editor, on top of the existing physics, editor, input, and scripting foundations.
 
 ---
 
@@ -44,27 +44,33 @@ PreyEngine is an Iranian-made 2D game engine designed around a clean C# architec
 
 ---
 
-## What's New in LTS 1.1 (Eternal Rain)
+## What's New in LTS 1.3.41 (Eternal Rain)
 
-### 2D Physics System
-- Custom physics stack inspired by common engine patterns (abstract backend + engine integration)
-- `IPhysicsBackend2D` with a managed backend implementation
-- `PhysicsWorld2D`, `Rigidbody2D`, `Collider2D`
-- `BoxCollider2D`, `CircleCollider2D`
-- Collision detection/response helpers, raycast support
-- Body types and core 2D math utilities (`AABB2D`, `Vec2`, etc.)
-- Editor integration: component UI, collider gizmo overlay in the viewport, scene/prefab serialization
+### Standalone Runtime & Build Pipeline
+- New **`MyEngine.Runtime`** project that depends **only** on `MyEngine.Core` (no Editor, no EditorFramework, no ImGui.NET)
+- Real standalone player executable: the game without any editor UI, gizmos, or ImGui
+- **File > Build Settings…** — game name, version, window size, fullscreen, optional `.ico`, boot scene
+- **File > Build** — background publish (UI stays responsive); progress and result in Console
+- `dotnet publish` as **self-contained** + **ReadyToRun** (player does not need .NET installed; faster cold start on weak machines)
+- Scripts compiled to a real on-disk DLL (`CompileToFile`); Assets copied without raw `.cs` sources
+- `game.manifest.json` written (name / version / boot scene / window settings)
+- Output folder: `<project>/Builds/<GameName>/` — zip-ready for distribution
 
-### Known v1 physics limits (honest scope)
-- Discrete collision only (no continuous collision detection — fast bodies may tunnel thin colliders)
-- No sleeping bodies yet
-- Friction / restitution per collider (no shared physics material asset in v1)
+### Architecture notes
+- Runtime draws directly to the screen (no intermediate RenderTarget used for ImGui), so it is lighter than editor Play Mode
+- Same update/draw loop as editor Play Mode, minus every editor-only system
 
-### Also included (from prior Community line)
-- Input System (keyboard / mouse / pointer, touch-ready)
-- Scripting System with hot reload
-- Camera gizmo, ProjectSettings, dirty tracking, drag-and-drop fixes
-- Transform serialization fix and related editor stability work
+### Known v1 Runtime limits (honest scope)
+- **Single boot scene** (`GameManifest.BootScenePath`) — designed so a future multi-scene manager can treat it as the first scene without redesign
+- **win-x64 only** for now (adding other RIDs is a small change in `ProjectBuilder`)
+- Window/taskbar icon at runtime is a long-standing MonoGame limitation; the `.exe` icon itself is reliable
+
+### Also included (from prior Community / LTS line)
+- Full custom **2D Physics** (`IPhysicsBackend2D`, `PhysicsWorld2D`, `Rigidbody2D`, Box/Circle colliders, raycast, collision callbacks)
+- Input System, Scripting + Hot Reload, Camera gizmo
+- Editor polish: dedicated Toolbar, vector icons in Content Browser, panel title-bar fix, font, layout
+- Content Browser folder tree + drag-and-drop move of assets/folders
+- Transform serialization fix, dirty tracking, ProjectSettings, Avalonia launcher
 
 ---
 
@@ -77,12 +83,20 @@ PreyEngine is an Iranian-made 2D game engine designed around a clean C# architec
 - Input System
 - Scripting + Hot Reload
 - **2D Physics** (Rigidbody / Colliders / World / Raycast)
+- **GameManifest** (shared Editor ↔ Runtime DTO)
 
 ### Editor
 - Hierarchy, Inspector, Viewport (Play Mode), Content Browser, Console
+- Dedicated Toolbar (Play / Undo / Gizmos / Grid / Colliders)
 - Gizmos (World / Local), camera gizmo, collider overlays
 - Undo/Redo, adaptive grid, scene tabs
 - Live asset import, drag & drop, ProjectSettings
+- **Build Settings + Build** pipeline
+
+### Runtime
+- Standalone player (`MyEngine.Runtime`)
+- Self-contained publish, ReadyToRun
+- No editor assemblies in the final binary
 
 ### Launcher
 - Avalonia UI, splash, project and editor version management
@@ -94,10 +108,11 @@ PreyEngine is an Iranian-made 2D game engine designed around a clean C# architec
 ```
 PreyEngine-Source/
 ├── src/
-│   ├── MyEngine.Core/         # Core, Input, Scripting, Physics
-│   ├── MyEngine.Editor/       # ImGui editor
+│   ├── MyEngine.Core/           # Core, Input, Scripting, Physics, GameManifest
+│   ├── MyEngine.Editor/         # ImGui editor + Build
 │   ├── MyEngine.EditorFramework/
-│   └── MyEngine.Launcher/     # Avalonia launcher
+│   ├── MyEngine.Runtime/        # Standalone player (NEW)
+│   └── MyEngine.Launcher/       # Avalonia launcher
 ├── MyEngine.sln
 ├── LICENSE
 └── README.md
@@ -111,7 +126,7 @@ PreyEngine-Source/
 ## Requirements
 
 - [.NET 8 SDK](https://dotnet.microsoft.com/download) or newer
-- Windows (primary platform)
+- Windows (primary platform; Runtime currently targets win-x64)
 
 ---
 
@@ -127,6 +142,8 @@ dotnet build
 dotnet run --project src/MyEngine.Editor
 dotnet run --project src/MyEngine.Launcher
 ```
+
+To produce a standalone build: open a project in the Editor → **File > Build Settings…** → **File > Build**. Output appears under the project’s `Builds/` folder.
 
 ---
 
@@ -152,7 +169,7 @@ See [LICENSE](LICENSE) for the full text.
 
 ## Disclaimer
 
-This is a delayed Community snapshot of **LTS 1 — Eternal Rain** (LTS 1.1).  
+This is a delayed Community snapshot of **LTS 1 — Eternal Rain** (**LTS 1.3.41**).  
 It is provided as-is. Mainline development continues under the policies described above.
 
 Thank you for your interest in PreyEngine.

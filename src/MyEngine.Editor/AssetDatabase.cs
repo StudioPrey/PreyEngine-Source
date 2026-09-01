@@ -215,6 +215,45 @@ public sealed class AssetDatabase : IDisposable
         Refresh();
     }
 
+    /// <summary>Moves an already-imported asset into a different folder, keeping its file name. Returns
+    /// false (without throwing) rather than overwriting an existing file, or if the target is where the
+    /// asset already lives.</summary>
+    public bool MoveAsset(string relativePath, string targetFolder)
+    {
+        if (!_assets.TryGetValue(relativePath, out var info)) return false;
+        if (info.FolderPath == targetFolder) return false;
+
+        var fileName = Path.GetFileName(info.FullPath);
+        var destPath = Path.Combine(_assetsRoot, targetFolder, fileName);
+        if (File.Exists(destPath)) return false;
+
+        Directory.CreateDirectory(Path.Combine(_assetsRoot, targetFolder));
+        File.Move(info.FullPath, destPath);
+        Refresh();
+        return true;
+    }
+
+    /// <summary>Moves an already-imported folder (and everything inside it) to become a child of
+    /// <paramref name="targetFolder"/>. Returns false (without throwing) for a no-op move, a move that
+    /// would nest the folder inside itself, or if something already exists at the destination.</summary>
+    public bool MoveFolder(string folderRelativePath, string targetFolder)
+    {
+        var name = Path.GetFileName(folderRelativePath);
+        var destPath = targetFolder.Length == 0 ? name : targetFolder + "/" + name;
+
+        if (destPath == folderRelativePath) return false;
+        if (targetFolder == folderRelativePath || targetFolder.StartsWith(folderRelativePath + "/", StringComparison.Ordinal))
+            return false; // would move the folder inside itself or one of its own subfolders
+
+        var sourceFull = Path.Combine(_assetsRoot, folderRelativePath);
+        var destFull = Path.Combine(_assetsRoot, destPath);
+        if (Directory.Exists(destFull)) return false;
+
+        Directory.Move(sourceFull, destFull);
+        Refresh();
+        return true;
+    }
+
     /// <summary>Writes a new, minimal default scene (a single "Main Camera") as a .scene file and imports it.
     /// Returns the relative asset path of the new scene.</summary>
     public string CreateScene(string parentFolder, string name)

@@ -13,14 +13,123 @@ public static class ContentBrowserPanel
 {
     private const float ThumbnailSize = 64f;
     private const float CellPadding = 12f;
+    private const float TreeWidth = 130f;
 
     public static ContentBrowserResult Draw(EditorState state)
     {
-        ImGui.Begin("Content Browser");
+        EditorLayout.PinContentBrowser();
+        ImGui.Begin("Content Browser", EditorLayout.PanelFlags);
 
         DrawToolbar(state);
         ImGui.Separator();
 
+        ImGui.BeginChild("FolderTree", new Vector2(TreeWidth, 0f), ImGuiChildFlags.None, ImGuiWindowFlags.None);
+        DrawFolderTree(state);
+        ImGui.EndChild();
+
+        ImGui.SameLine();
+
+        ImGui.BeginChild("FolderGrid", Vector2.Zero, ImGuiChildFlags.None, ImGuiWindowFlags.None);
+        string? sceneToOpen = DrawGrid(state);
+        ImGui.EndChild();
+
+        ImGui.End();
+        return new ContentBrowserResult { SceneToOpen = sceneToOpen };
+    }
+
+    private static void DrawToolbar(EditorState state)
+    {
+        if (ImGui.Button("Refresh"))
+        {
+            state.Assets.Refresh();
+            state.LogMessage("Reimported all assets.");
+        }
+        ImGui.SameLine();
+
+        if (ImGui.SmallButton("Assets")) state.ContentBrowserFolder = "";
+
+        if (state.ContentBrowserFolder.Length > 0)
+        {
+            var parts = state.ContentBrowserFolder.Split('/');
+            string accum = "";
+            foreach (var part in parts)
+            {
+                accum = accum.Length == 0 ? part : accum + "/" + part;
+                var target = accum;
+                ImGui.SameLine(0, 2);
+                ImGui.TextDisabled("/");
+                ImGui.SameLine(0, 2);
+                if (ImGui.SmallButton(part)) state.ContentBrowserFolder = target;
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- folder tree (left sidebar)
+
+    /// <summary>A persistent, always-expandable tree of every folder in the project — lets the person jump
+    /// straight to any folder instead of clicking through the grid level by level, and (like every node's
+    /// tile in the grid) accepts drops to move an asset or folder there.</summary>
+    private static void DrawFolderTree(EditorState state)
+    {
+        var flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanAvailWidth | ImGuiTreeNodeFlags.DefaultOpen;
+        if (state.ContentBrowserFolder.Length == 0) flags |= ImGuiTreeNodeFlags.Selected;
+
+        bool open = ImGui.TreeNodeEx("Assets##contentTreeRoot", flags);
+        if (ImGui.IsItemClicked()) state.ContentBrowserFolder = "";
+        AcceptFolderDrop(state, "");
+
+        if (open)
+        {
+            foreach (var sub in state.Assets.GetSubfolders("").OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+                DrawTreeNode(state, sub, sub);
+            ImGui.TreePop();
+        }
+    }
+
+    private static void DrawTreeNode(EditorState state, string folderPath, string displayName)
+    {
+        var subfolders = state.Assets.GetSubfolders(folderPath).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToArray();
+
+        var flags = ImGuiTreeNodeFlags.OpenOnArrow | ImGuiTreeNodeFlags.SpanAvailWidth;
+        if (subfolders.Length == 0) flags |= ImGuiTreeNodeFlags.Leaf;
+        if (state.ContentBrowserFolder == folderPath) flags |= ImGuiTreeNodeFlags.Selected;
+
+        bool open = ImGui.TreeNodeEx(displayName + "##tree_" + folderPath, flags);
+        if (ImGui.IsItemClicked()) state.ContentBrowserFolder = folderPath;
+        AcceptFolderDrop(state, folderPath);
+
+        if (open)
+        {
+            foreach (var sub in subfolders)
+                DrawTreeNode(state, folderPath + "/" + sub, sub);
+            ImGui.TreePop();
+        }
+    }
+
+    /// <summary>Wrap around anything that represents a folder (a tree node, a folder tile, the ".." tile) —
+    /// accepts a dropped asset or folder and moves it to <paramref name="targetFolder"/>.</summary>
+    private static void AcceptFolderDrop(EditorState state, string targetFolder)
+    {
+        if (!ImGui.BeginDragDropTarget()) return;
+        var dropped = DragDropPayloads.AcceptTarget(DragDropPayloads.ContentBrowserItem);
+        if (dropped != null) TryMoveItem(state, dropped, targetFolder);
+        ImGui.EndDragDropTarget();
+    }
+
+    private static void TryMoveItem(EditorState state, string itemRelativePath, string targetFolder)
+    {
+        bool moved = state.Assets.Find(itemRelativePath) != null
+            ? state.Assets.MoveAsset(itemRelativePath, targetFolder)
+            : state.Assets.MoveFolder(itemRelativePath, targetFolder);
+
+        if (moved)
+            state.LogMessage($"Moved '{itemRelativePath}' to '{(targetFolder.Length == 0 ? "Assets" : targetFolder)}'.");
+    }
+
+    // ---------------------------------------------------------------- grid (right side)
+
+    private static string? DrawGrid(EditorState state)
+    {
         string? sceneToOpen = null;
 
         var subfolders = state.Assets.GetSubfolders(state.ContentBrowserFolder).OrderBy(f => f, StringComparer.OrdinalIgnoreCase).ToArray();
@@ -70,36 +179,7 @@ public static class ContentBrowserPanel
             ImGui.TextDisabled("Empty. Right-click for Create, or drop a .png here.");
 
         HandleContextMenu(state);
-
-        ImGui.End();
-        return new ContentBrowserResult { SceneToOpen = sceneToOpen };
-    }
-
-    private static void DrawToolbar(EditorState state)
-    {
-        if (ImGui.Button("Refresh"))
-        {
-            state.Assets.Refresh();
-            state.LogMessage("Reimported all assets.");
-        }
-        ImGui.SameLine();
-
-        if (ImGui.SmallButton("Assets")) state.ContentBrowserFolder = "";
-
-        if (state.ContentBrowserFolder.Length > 0)
-        {
-            var parts = state.ContentBrowserFolder.Split('/');
-            string accum = "";
-            foreach (var part in parts)
-            {
-                accum = accum.Length == 0 ? part : accum + "/" + part;
-                var target = accum;
-                ImGui.SameLine(0, 2);
-                ImGui.TextDisabled("/");
-                ImGui.SameLine(0, 2);
-                if (ImGui.SmallButton(part)) state.ContentBrowserFolder = target;
-            }
-        }
+        return sceneToOpen;
     }
 
     private static void HandleContextMenu(EditorState state)
@@ -140,26 +220,33 @@ public static class ContentBrowserPanel
 
     private static void DrawUpTile(EditorState state)
     {
+        var idx = state.ContentBrowserFolder.LastIndexOf('/');
+        var parentFolder = idx < 0 ? "" : state.ContentBrowserFolder[..idx];
+
         ImGui.BeginGroup();
-        if (ImGui.Button("..", new Vector2(ThumbnailSize, ThumbnailSize)))
-        {
-            var idx = state.ContentBrowserFolder.LastIndexOf('/');
-            state.ContentBrowserFolder = idx < 0 ? "" : state.ContentBrowserFolder[..idx];
-        }
+        if (EditorIcons.Button("up", new Vector2(ThumbnailSize, ThumbnailSize), false, EditorIcons.FolderUp))
+            state.ContentBrowserFolder = parentFolder;
+        AcceptFolderDrop(state, parentFolder);
         ImGui.TextDisabled("..");
         ImGui.EndGroup();
     }
 
     private static void DrawFolderTile(EditorState state, string folderName)
     {
+        string folderPath = state.ContentBrowserFolder.Length == 0 ? folderName : state.ContentBrowserFolder + "/" + folderName;
+
         ImGui.BeginGroup();
-        ImGui.Button("[Folder]", new Vector2(ThumbnailSize, ThumbnailSize));
+        EditorIcons.Button("folder", new Vector2(ThumbnailSize, ThumbnailSize), false, EditorIcons.Folder);
         if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+            state.ContentBrowserFolder = folderPath;
+
+        if (DragDropPayloads.BeginSource(DragDropPayloads.ContentBrowserItem, folderPath, folderName))
         {
-            state.ContentBrowserFolder = state.ContentBrowserFolder.Length == 0
-                ? folderName
-                : state.ContentBrowserFolder + "/" + folderName;
+            ImGui.Text(folderName);
+            ImGui.EndDragDropSource();
         }
+        AcceptFolderDrop(state, folderPath);
+
         ImGui.TextWrapped(Truncate(folderName, 10));
         ImGui.EndGroup();
     }
@@ -180,49 +267,46 @@ public static class ContentBrowserPanel
         }
         else
         {
-            string label = asset.Type switch
+            Action<ImDrawListPtr, Vector2, Vector2, uint> icon = asset.Type switch
             {
-                AssetType.Prefab => "[Prefab]",
-                AssetType.Scene => "[Scene]",
-                AssetType.Script => "[Script]",
-                _ => "[?]",
+                AssetType.Prefab => EditorIcons.Prefab,
+                AssetType.Scene => EditorIcons.Scene,
+                AssetType.Script => EditorIcons.Script,
+                _ => EditorIcons.Script,
             };
-            if (ImGui.Button(label, new Vector2(ThumbnailSize, ThumbnailSize)))
+            if (EditorIcons.Button(asset.RelativePath, new Vector2(ThumbnailSize, ThumbnailSize), false, icon))
                 state.SelectAsset(asset);
         }
 
         if (selected) ImGui.PopStyleColor();
 
-        if (asset.Type == AssetType.Texture)
+        // Every asset type is draggable to move it between folders (ContentBrowserItem); Texture/Prefab
+        // additionally carry their original payload type so dragging one into the Viewport still works
+        // exactly as before — one drag gesture, two possible drop outcomes depending on where it lands.
+        if (DragDropPayloads.BeginSource(DragDropPayloads.ContentBrowserItem, asset.RelativePath, asset.DisplayName))
         {
-            if (DragDropPayloads.BeginSource(DragDropPayloads.Texture, asset.RelativePath, asset.DisplayName))
-            {
+            if (asset.Type == AssetType.Texture) DragDropPayloads.AddPayloadType(DragDropPayloads.Texture);
+            else if (asset.Type == AssetType.Prefab) DragDropPayloads.AddPayloadType(DragDropPayloads.Prefab);
+
+            if (asset.Type == AssetType.Texture && asset.ThumbnailId != IntPtr.Zero)
                 ImGui.Image(asset.ThumbnailId, new Vector2(48, 48));
-                ImGui.EndDragDropSource();
-            }
-        }
-        else if (asset.Type == AssetType.Prefab)
-        {
-            if (DragDropPayloads.BeginSource(DragDropPayloads.Prefab, asset.RelativePath, asset.DisplayName))
-            {
+            else
                 ImGui.Text(asset.DisplayName);
-                ImGui.EndDragDropSource();
-            }
-            if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
-                AssetDropHandler.InstantiatePrefab(state, asset.RelativePath);
+            ImGui.EndDragDropSource();
         }
-        else if (asset.Type == AssetType.Scene)
+
+        if (asset.Type == AssetType.Prefab && ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
         {
-            if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
-                openScene = asset.FullPath;
+            AssetDropHandler.InstantiatePrefab(state, asset.RelativePath);
         }
-        else if (asset.Type == AssetType.Script)
+        else if (asset.Type == AssetType.Scene && ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
         {
-            if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
-            {
-                var error = ExternalEditorLauncher.Open(asset.FullPath);
-                if (error != null) state.LogMessage($"ERROR: {error}");
-            }
+            openScene = asset.FullPath;
+        }
+        else if (asset.Type == AssetType.Script && ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
+        {
+            var error = ExternalEditorLauncher.Open(asset.FullPath);
+            if (error != null) state.LogMessage($"ERROR: {error}");
         }
 
         ImGui.TextWrapped(Truncate(asset.DisplayName, 10));
@@ -235,14 +319,14 @@ public static class ContentBrowserPanel
         var pending = state.PendingCreate!;
         ImGui.BeginGroup();
 
-        string label = pending.Kind switch
+        Action<ImDrawListPtr, Vector2, Vector2, uint> icon = pending.Kind switch
         {
-            PendingCreateKind.Folder => "[Folder]",
-            PendingCreateKind.Scene => "[Scene]",
-            PendingCreateKind.Script => "[Script]",
-            _ => "[?]",
+            PendingCreateKind.Folder => EditorIcons.Folder,
+            PendingCreateKind.Scene => EditorIcons.Scene,
+            PendingCreateKind.Script => EditorIcons.Script,
+            _ => EditorIcons.Script,
         };
-        ImGui.Button(label, new Vector2(ThumbnailSize, ThumbnailSize));
+        EditorIcons.Button("pendingCreate", new Vector2(ThumbnailSize, ThumbnailSize), false, icon);
 
         ImGui.SetNextItemWidth(ThumbnailSize);
         if (pending.FocusRequested)
