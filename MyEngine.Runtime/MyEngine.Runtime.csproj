@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>MyEngine.Runtime</RootNamespace>
+    <AssemblyName>Game</AssemblyName>
+
+    <!-- Icon.ico ships with a bundled default (a copy of DefaultIcon.ico below) so this project always
+         builds/publishes on its own. The Editor's Build step overwrites it with the game's own icon (or
+         re-copies the default) immediately before every publish. -->
+    <ApplicationIcon>Icon.ico</ApplicationIcon>
+
+    <!-- Deliberately no MonoGame.Content.Builder.Task reference: this project never uses the MGCB content
+         pipeline (.xnb) — textures are loaded straight from the shipped Assets/ folder at runtime with
+         Texture2D.FromStream, the same way the Editor's own AssetDatabase already does. One fewer package
+         to restore, and no "no content references found" warning for a pipeline nothing here uses. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Not shipped: only here so a fresh publish always has an icon to embed even if the Editor's Build
+         step hasn't copied a project-specific Icon.ico into place yet (e.g. running `dotnet publish`
+         directly against this project during MyEngine's own development). -->
+    <None Include="DefaultIcon.ico" CopyToOutputDirectory="Never" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyEngine.Core\MyEngine.Core.csproj" />
+  </ItemGroup>
+
+</Project>
