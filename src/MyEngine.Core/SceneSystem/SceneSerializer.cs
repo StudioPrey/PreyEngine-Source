@@ -1,0 +1,476 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Microsoft.Xna.Framework;
+using MyEngine.Core.Animation;
+using MyEngine.Core.Audio;
+using MyEngine.Core.Components;
+using MyEngine.Core.ECS;
+using MyEngine.Core.Physics;
+using MyEngine.Core.Scripting;
+
+namespace MyEngine.Core.SceneSystem;
+
+// --- Plain DTOs, decoupled from the runtime types so the file format stays stable
+// even as engine internals change. Add one *Data class + one branch each in ToComponentData/
+// ApplyComponentData, plus a [JsonDerivedType] entry on ComponentData below, whenever you add a new
+// serializable component type. ---
+
+public sealed class SceneData
+{
+    public string Name { get; set; } = "Untitled Scene";
+    public List<GameObjectData> Objects { get; set; } = new();
+}
+
+public sealed class GameObjectData
+{
+    public Guid Id { get; set; }
+    public Guid? ParentId { get; set; }
+    public string Name { get; set; } = "GameObject";
+    public bool Enabled { get; set; } = true;
+    public string? SourcePrefabPath { get; set; }
+    public float X { get; set; }
+    public float Y { get; set; }
+    public float Rotation { get; set; }
+    public float ScaleX { get; set; } = 1;
+    public float ScaleY { get; set; } = 1;
+    public List<ComponentData> Components { get; set; } = new();
+}
+
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
+[JsonDerivedType(typeof(SpriteRendererData), "SpriteRenderer")]
+[JsonDerivedType(typeof(Camera2DData), "Camera2D")]
+[JsonDerivedType(typeof(ScriptComponentData), "Script")]
+[JsonDerivedType(typeof(Rigidbody2DData), "Rigidbody2D")]
+[JsonDerivedType(typeof(BoxCollider2DData), "BoxCollider2D")]
+[JsonDerivedType(typeof(CircleCollider2DData), "CircleCollider2D")]
+[JsonDerivedType(typeof(SpriteAnimationData), "SpriteAnimation")]
+[JsonDerivedType(typeof(AudioSourceData), "AudioSource")]
+public abstract class ComponentData { }
+
+public sealed class SpriteRendererData : ComponentData
+{
+    public string? TexturePath { get; set; }
+    public byte R { get; set; } = 255;
+    public byte G { get; set; } = 255;
+    public byte B { get; set; } = 255;
+    public byte A { get; set; } = 255;
+    public float SizeX { get; set; } = 64;
+    public float SizeY { get; set; } = 64;
+    public int SortingOrder { get; set; }
+}
+
+public sealed class Camera2DData : ComponentData
+{
+    public float Zoom { get; set; } = 1f;
+    public bool IsActive { get; set; } = true;
+    public Guid? FollowTargetId { get; set; }
+    public float FollowSmoothing { get; set; } = 0.15f;
+    public float FollowOffsetX { get; set; }
+    public float FollowOffsetY { get; set; }
+}
+
+public sealed class Rigidbody2DData : ComponentData
+{
+    public BodyType2D BodyType { get; set; } = BodyType2D.Dynamic;
+    public float Mass { get; set; } = 1f;
+    public float GravityScale { get; set; } = 1f;
+    public float LinearDamping { get; set; }
+    public float AngularDamping { get; set; } = 0.05f;
+    public bool FreezeRotation { get; set; }
+}
+
+public sealed class BoxCollider2DData : ComponentData
+{
+    public float OffsetX { get; set; }
+    public float OffsetY { get; set; }
+    public bool IsTrigger { get; set; }
+    public float Friction { get; set; } = 0.4f;
+    public float Restitution { get; set; }
+    public float Density { get; set; } = 1f;
+    public float SizeX { get; set; } = 64f;
+    public float SizeY { get; set; } = 64f;
+}
+
+public sealed class CircleCollider2DData : ComponentData
+{
+    public float OffsetX { get; set; }
+    public float OffsetY { get; set; }
+    public bool IsTrigger { get; set; }
+    public float Friction { get; set; } = 0.4f;
+    public float Restitution { get; set; }
+    public float Density { get; set; } = 1f;
+    public float Radius { get; set; } = 32f;
+}
+
+public sealed class SpriteAnimationData : ComponentData
+{
+    public string? DefaultClip { get; set; }
+    public List<SpriteAnimationClipData> Clips { get; set; } = new();
+}
+
+public sealed class AudioSourceData : ComponentData
+{
+    public string? ClipPath { get; set; }
+    public float Volume { get; set; } = 1f;
+    public float Pitch { get; set; }
+    public float Pan { get; set; }
+    public bool Loop { get; set; }
+    public bool PlayOnStart { get; set; }
+}
+
+/// <summary>Plain-data mirror of SpriteAnimationClip — see that class for what each field means.
+/// Not a ComponentData itself (a clip isn't a component on its own); only ever appears nested inside
+/// SpriteAnimationData.Clips.</summary>
+public sealed class SpriteAnimationClipData
+{
+    public string Name { get; set; } = "";
+    public SpriteAnimationFrameSource FrameSource { get; set; } = SpriteAnimationFrameSource.SpriteSheet;
+    public string? SheetTexturePath { get; set; }
+    public float FrameRate { get; set; } = 12f;
+    public AnimationLoopMode LoopMode { get; set; } = AnimationLoopMode.Loop;
+    public List<SpriteAnimationFrameData> Frames { get; set; } = new();
+}
+
+/// <summary>Plain-data mirror of SpriteAnimationFrame. X/Y/Width/Height instead of a Rectangle for the same
+/// reason SpriteRendererData uses SizeX/SizeY instead of a Vector2: System.Text.Json's default reflection
+/// serializer works cleanly with plain scalar fields, not with MonoGame's field-based, derived-property-heavy
+/// structs.</summary>
+public sealed class SpriteAnimationFrameData
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+    public int Width { get; set; }
+    public int Height { get; set; }
+    public string? TexturePath { get; set; }
+}
+
+/// <summary>
+/// Generic container for a user script component. Core doesn't know user script classes (they're
+/// compiled per-project, at runtime) so this can't be one DTO per script the way SpriteRendererData is
+/// one DTO for SpriteRenderer — instead it carries the script's class name (resolved back to a compiled
+/// Type via ScriptRegistry) and a name-to-string map of its public field values.
+/// See ScriptSerialization for what field types are actually supported in this first version.
+/// </summary>
+public sealed class ScriptComponentData : ComponentData
+{
+    public string TypeName { get; set; } = "";
+    public Dictionary<string, string> Fields { get; set; } = new();
+}
+
+/// <summary>
+/// Converts between the runtime Scene/GameObject graph and a flat, human-readable JSON file.
+/// Also backs Prefabs (see PrefabSerializer) and the in-memory clone used for Play Mode, since
+/// both are really "turn a GameObject subtree into data and back" operations.
+/// Texture loading is intentionally left to the caller (via AssetDatabase.ResolveSceneAssets)
+/// because Core doesn't know about the editor's asset system.
+/// </summary>
+public static class SceneSerializer
+{
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        WriteIndented = true,
+        IncludeFields = false,
+    };
+
+    // ---------------------------------------------------------------- GameObject <-> Data
+
+    public static GameObjectData ToGameObjectData(GameObject go)
+    {
+        var data = new GameObjectData
+        {
+            Id = go.Id,
+            ParentId = go.Parent?.Id,
+            Name = go.Name,
+            Enabled = go.Enabled,
+            SourcePrefabPath = go.SourcePrefabPath,
+            X = go.Transform.LocalPosition.X,
+            Y = go.Transform.LocalPosition.Y,
+            Rotation = go.Transform.LocalRotation,
+            ScaleX = go.Transform.LocalScale.X,
+            ScaleY = go.Transform.LocalScale.Y,
+        };
+
+        foreach (var c in go.Components)
+        {
+            var cData = ToComponentData(c);
+            if (cData != null) data.Components.Add(cData);
+        }
+
+        return data;
+    }
+
+    /// <summary>Captures one component's current field values as a ComponentData snapshot — the same DTO
+    /// scenes are saved/loaded through, factored out here so anything that needs to snapshot a *single*
+    /// component (e.g. the Editor's "Remove Component" undo command) can reuse it instead of duplicating
+    /// this switch. Returns null for Transform and any other component type with no serializer — Transform
+    /// is implicit and already captured on GameObjectData itself.</summary>
+    public static ComponentData? ToComponentData(Component c)
+    {
+        switch (c)
+        {
+            case SpriteRenderer sr:
+                return new SpriteRendererData
+                {
+                    TexturePath = sr.TexturePath,
+                    R = sr.Color.R,
+                    G = sr.Color.G,
+                    B = sr.Color.B,
+                    A = sr.Color.A,
+                    SizeX = sr.Size.X,
+                    SizeY = sr.Size.Y,
+                    SortingOrder = sr.SortingOrder,
+                };
+            case Camera2D cam:
+                return new Camera2DData
+                {
+                    Zoom = cam.Zoom,
+                    IsActive = cam.IsActive,
+                    FollowTargetId = cam.FollowTarget?.Id,
+                    FollowSmoothing = cam.FollowSmoothing,
+                    FollowOffsetX = cam.FollowOffset.X,
+                    FollowOffsetY = cam.FollowOffset.Y,
+                };
+            case Script script:
+                return ScriptSerialization.Capture(script);
+            case Rigidbody2D rb:
+                return new Rigidbody2DData
+                {
+                    BodyType = rb.BodyType,
+                    Mass = rb.Mass,
+                    GravityScale = rb.GravityScale,
+                    LinearDamping = rb.LinearDamping,
+                    AngularDamping = rb.AngularDamping,
+                    FreezeRotation = rb.FreezeRotation,
+                };
+            case BoxCollider2D box:
+                return new BoxCollider2DData
+                {
+                    OffsetX = box.Offset.X,
+                    OffsetY = box.Offset.Y,
+                    IsTrigger = box.IsTrigger,
+                    Friction = box.Friction,
+                    Restitution = box.Restitution,
+                    Density = box.Density,
+                    SizeX = box.Size.X,
+                    SizeY = box.Size.Y,
+                };
+            case CircleCollider2D circle:
+                return new CircleCollider2DData
+                {
+                    OffsetX = circle.Offset.X,
+                    OffsetY = circle.Offset.Y,
+                    IsTrigger = circle.IsTrigger,
+                    Friction = circle.Friction,
+                    Restitution = circle.Restitution,
+                    Density = circle.Density,
+                    Radius = circle.Radius,
+                };
+            case SpriteAnimation anim:
+                return new SpriteAnimationData
+                {
+                    DefaultClip = anim.DefaultClip,
+                    Clips = anim.Clips.Values.Select(clip => new SpriteAnimationClipData
+                    {
+                        Name = clip.Name,
+                        FrameSource = clip.FrameSource,
+                        SheetTexturePath = clip.SheetTexturePath,
+                        FrameRate = clip.FrameRate,
+                        LoopMode = clip.LoopMode,
+                        Frames = clip.Frames.Select(f => new SpriteAnimationFrameData
+                        {
+                            X = f.SourceRect.X,
+                            Y = f.SourceRect.Y,
+                            Width = f.SourceRect.Width,
+                            Height = f.SourceRect.Height,
+                            TexturePath = f.TexturePath,
+                        }).ToList(),
+                    }).ToList(),
+                };
+            case AudioSource audio:
+                return new AudioSourceData
+                {
+                    ClipPath = audio.ClipPath,
+                    Volume = audio.Volume,
+                    Pitch = audio.Pitch,
+                    Pan = audio.Pan,
+                    Loop = audio.Loop,
+                    PlayOnStart = audio.PlayOnStart,
+                };
+            default:
+                // Transform is implicit and already captured on GameObjectData; anything else has no
+                // serializer (yet).
+                return null;
+        }
+    }
+
+    /// <summary>Adds a component matching <paramref name="cData"/> to <paramref name="go"/> with every field
+    /// restored from the snapshot. Public so the Editor's "Remove Component" undo can restore a component
+    /// exactly as it was, not just re-add a blank default instance.</summary>
+    public static void ApplyComponentData(GameObject go, ComponentData cData)
+    {
+        switch (cData)
+        {
+            case SpriteRendererData sr:
+                var renderer = go.AddComponent<SpriteRenderer>();
+                renderer.TexturePath = sr.TexturePath;
+                renderer.Color = new Color(sr.R, sr.G, sr.B, sr.A);
+                renderer.Size = new Vector2(sr.SizeX, sr.SizeY);
+                renderer.SortingOrder = sr.SortingOrder;
+                break;
+            case Camera2DData cam:
+                var camera = go.AddComponent<Camera2D>();
+                camera.Zoom = cam.Zoom;
+                camera.IsActive = cam.IsActive;
+                camera.FollowSmoothing = cam.FollowSmoothing;
+                camera.FollowOffset = new Vector2(cam.FollowOffsetX, cam.FollowOffsetY);
+                break;
+            case ScriptComponentData scriptData:
+                var scriptType = ScriptRegistry.Find(scriptData.TypeName);
+                if (scriptType == null) break; // "missing script" — skip rather than fail the whole load
+                var script = (Script)go.AddComponent(scriptType);
+                ScriptSerialization.Apply(script, scriptData);
+                break;
+            case Rigidbody2DData rbData:
+                var rigidbody = go.AddComponent<Rigidbody2D>();
+                rigidbody.BodyType = rbData.BodyType;
+                rigidbody.Mass = rbData.Mass;
+                rigidbody.GravityScale = rbData.GravityScale;
+                rigidbody.LinearDamping = rbData.LinearDamping;
+                rigidbody.AngularDamping = rbData.AngularDamping;
+                rigidbody.FreezeRotation = rbData.FreezeRotation;
+                break;
+            case BoxCollider2DData boxData:
+                var boxCollider = go.AddComponent<BoxCollider2D>();
+                boxCollider.Offset = new Vector2(boxData.OffsetX, boxData.OffsetY);
+                boxCollider.IsTrigger = boxData.IsTrigger;
+                boxCollider.Friction = boxData.Friction;
+                boxCollider.Restitution = boxData.Restitution;
+                boxCollider.Density = boxData.Density;
+                boxCollider.Size = new Vector2(boxData.SizeX, boxData.SizeY);
+                break;
+            case CircleCollider2DData circleData:
+                var circleCollider = go.AddComponent<CircleCollider2D>();
+                circleCollider.Offset = new Vector2(circleData.OffsetX, circleData.OffsetY);
+                circleCollider.IsTrigger = circleData.IsTrigger;
+                circleCollider.Friction = circleData.Friction;
+                circleCollider.Restitution = circleData.Restitution;
+                circleCollider.Density = circleData.Density;
+                circleCollider.Radius = circleData.Radius;
+                break;
+            case SpriteAnimationData animData:
+                var anim = go.AddComponent<SpriteAnimation>();
+                anim.DefaultClip = animData.DefaultClip;
+                foreach (var clipData in animData.Clips)
+                {
+                    var clip = anim.AddClip(clipData.Name);
+                    clip.FrameSource = clipData.FrameSource;
+                    clip.SheetTexturePath = clipData.SheetTexturePath;
+                    clip.FrameRate = clipData.FrameRate;
+                    clip.LoopMode = clipData.LoopMode;
+                    foreach (var frameData in clipData.Frames)
+                    {
+                        clip.Frames.Add(new SpriteAnimationFrame
+                        {
+                            SourceRect = new Rectangle(frameData.X, frameData.Y, frameData.Width, frameData.Height),
+                            TexturePath = frameData.TexturePath,
+                        });
+                    }
+                }
+                break;
+            case AudioSourceData audioData:
+                var audio = go.AddComponent<AudioSource>();
+                audio.ClipPath = audioData.ClipPath;
+                audio.Volume = audioData.Volume;
+                audio.Pitch = audioData.Pitch;
+                audio.Pan = audioData.Pan;
+                audio.Loop = audioData.Loop;
+                audio.PlayOnStart = audioData.PlayOnStart;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Creates a GameObject for every entry in <paramref name="objects"/> inside <paramref name="targetScene"/>,
+    /// then wires up parenting and cross-references (e.g. Camera2D.FollowTarget) in a second pass.
+    /// When <paramref name="preserveIds"/> is true, each new GameObject keeps the Id from the data (used when
+    /// loading a scene, or cloning it for Play Mode, so external references and selection stay valid).
+    /// When false, every object gets a brand new Id (used for prefab instantiation, so you can drop the same
+    /// prefab into a scene multiple times without Id collisions).
+    /// Returns a lookup from each entry's *original* Id (as written in the data) to the GameObject created for it.
+    /// </summary>
+    public static Dictionary<Guid, GameObject> BuildIntoScene(
+        IReadOnlyList<GameObjectData> objects, Scene targetScene, bool preserveIds)
+    {
+        var lookup = new Dictionary<Guid, GameObject>();
+
+        foreach (var goData in objects)
+        {
+            var id = preserveIds ? goData.Id : Guid.NewGuid();
+            var go = targetScene.CreateGameObject(goData.Name, id);
+            go.Enabled = goData.Enabled;
+            go.SourcePrefabPath = goData.SourcePrefabPath;
+            go.Transform.LocalPosition = new Vector2(goData.X, goData.Y);
+            go.Transform.LocalRotation = goData.Rotation;
+            go.Transform.LocalScale = new Vector2(goData.ScaleX, goData.ScaleY);
+
+            foreach (var cData in goData.Components)
+                ApplyComponentData(go, cData);
+
+            lookup[goData.Id] = go;
+        }
+
+        foreach (var goData in objects)
+        {
+            var go = lookup[goData.Id];
+
+            if (goData.ParentId is { } parentId && lookup.TryGetValue(parentId, out var parent))
+                go.SetParent(parent, keepWorldPosition: false);
+
+            foreach (var cData in goData.Components)
+            {
+                if (cData is Camera2DData { FollowTargetId: { } targetId } &&
+                    lookup.TryGetValue(targetId, out var target))
+                {
+                    var camera = go.GetComponent<Camera2D>();
+                    if (camera != null) camera.FollowTarget = target;
+                }
+            }
+        }
+
+        return lookup;
+    }
+
+    // ---------------------------------------------------------------- Scene <-> Data
+
+    public static SceneData ToData(Scene scene)
+    {
+        var data = new SceneData { Name = scene.Name };
+        foreach (var go in scene.GameObjects)
+            data.Objects.Add(ToGameObjectData(go));
+        return data;
+    }
+
+    public static Scene FromData(SceneData data)
+    {
+        var scene = new Scene(data.Name);
+        BuildIntoScene(data.Objects, scene, preserveIds: true);
+        return scene;
+    }
+
+    /// <summary>Deep-clones a scene in memory (same Ids preserved) — used for Play Mode.</summary>
+    public static Scene Clone(Scene scene) => FromData(ToData(scene));
+
+    public static void Save(Scene scene, string path)
+    {
+        var json = JsonSerializer.Serialize(ToData(scene), Options);
+        File.WriteAllText(path, json);
+    }
+
+    public static Scene Load(string path)
+    {
+        var json = File.ReadAllText(path);
+        var data = JsonSerializer.Deserialize<SceneData>(json, Options)
+                   ?? throw new InvalidDataException($"Could not parse scene file: {path}");
+        return FromData(data);
+    }
+}
