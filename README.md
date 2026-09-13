@@ -1,7 +1,6 @@
 # PreyEngine Source (Community Edition)
 
-**LTS 1 — Eternal Rain**  
-**Snapshot: LTS 1.3.41**
+**Version: STS 11.5**
 
 **PreyEngine** is a custom 2D game engine built with **MonoGame** + **ImGui.NET**.  
 Created and maintained by **Arian Shahmohammadi**, founder of **Easyprey Studio**.
@@ -9,11 +8,14 @@ Created and maintained by **Arian Shahmohammadi**, founder of **Easyprey Studio*
 This repository is the official **Community / Source** release channel for PreyEngine.  
 It is published under the MIT License with a mandatory attribution requirement.
 
+> **Note on versioning:** STS 11.4 was not published as a separate community snapshot.  
+> Development moved directly to **STS 11.5**, which bundles a stronger set of improvements in one release.
+
 ---
 
 ## About
 
-PreyEngine is an Iranian-made 2D game engine designed around a clean C# architecture and a Unity-like workflow. **LTS 1 (Eternal Rain)** is the first Long-Term Support generation and focuses on stability and refinement. This snapshot (**LTS 1.3.41**) adds a full **standalone Runtime / Build pipeline** so you can produce a real player executable without the editor, on top of the existing physics, editor, input, and scripting foundations.
+PreyEngine is an Iranian-made 2D game engine designed around a clean C# architecture and a Unity-like workflow. **STS 11.5** continues the short-term feature line with animation and audio foundations, a clearer 2D rendering abstraction, and everything already established in prior Community builds (physics, standalone runtime/build, input, scripting, and editor tooling).
 
 ---
 
@@ -21,56 +23,45 @@ PreyEngine is an Iranian-made 2D game engine designed around a clean C# architec
 
 | Channel | Focus | Support window |
 |---------|--------|----------------|
-| **STS** (Short-Term Support) | Rapid feature delivery | Up to **two STS versions** of support (critical bug fixes excluded from this limit and may ship sooner) |
-| **LTS** (Long-Term Support) | Stability and improvement | Each LTS **generation** (the leading version number, e.g. LTS **1**.x) is supported for up to **about three months**, including selected new features, bug fixes, and stability work within that generation |
+| **STS** (Short-Term Support) | Rapid feature delivery | **Minimum ~1 month**, **maximum ~7 months** per STS generation |
+| **LTS** (Long-Term Support) | Stability and improvement | **Minimum ~3 months**, **maximum ~1.5 years** per LTS generation |
 
-- **STS** moves fast: new capabilities land quickly; support depth is intentionally limited.
-- **LTS** moves carefully: fewer breaking swings, emphasis on reliability, polish, and sustainable improvement within the generation.
+- **STS** moves fast: new capabilities land quickly; the support window is intentionally shorter.
+- **LTS** moves carefully: fewer breaking swings, emphasis on reliability and sustainable improvement within the generation.
 
-**Critical and essential bug fixes** (crashes, data loss, security issues) are prioritized on both channels and are not held back solely by normal support-window rules.
+**Critical and essential bug fixes** (crashes, data loss, security issues) are prioritized on both channels and are not limited solely by the normal support windows above.
 
----
-
-## Community Delay Policy
-
-| Period | Policy |
-|--------|--------|
-| **Until Bahman 1405 (Jan–Feb 2027)** | Community source follows approximately a **3-version delay** behind mainline milestones |
-| **From Bahman 1405 onward** | The 3-version rule is **retired**. Community snapshots target about a **6–8 week delay** after a milestone is considered stable on the mainline |
-
-- Small fixes and polish are usually **bundled** into the next Community snapshot.
-- **Critical / essential bug fixes** are exempt from delay targets and are published as soon as practical.
-- Delay figures are **release targets**, not a guaranteed SLA.
+Community snapshots are delayed builds of the mainline. Small fixes are usually bundled into the next snapshot. Delay timing is a **release target**, not a guaranteed SLA.
 
 ---
 
-## What's New in LTS 1.3.41 (Eternal Rain)
+## What's New in STS 11.5
 
-### Standalone Runtime & Build Pipeline
-- New **`MyEngine.Runtime`** project that depends **only** on `MyEngine.Core` (no Editor, no EditorFramework, no ImGui.NET)
-- Real standalone player executable: the game without any editor UI, gizmos, or ImGui
-- **File > Build Settings…** — game name, version, window size, fullscreen, optional `.ico`, boot scene
-- **File > Build** — background publish (UI stays responsive); progress and result in Console
-- `dotnet publish` as **self-contained** + **ReadyToRun** (player does not need .NET installed; faster cold start on weak machines)
-- Scripts compiled to a real on-disk DLL (`CompileToFile`); Assets copied without raw `.cs` sources
-- `game.manifest.json` written (name / version / boot scene / window settings)
-- Output folder: `<project>/Builds/<GameName>/` — zip-ready for distribution
+### Animation (experimental)
+- Sprite animation model: clips, frames, loop modes
+- `FrameSequencePlayer` and `IAnimationSource`
+- Sprite sheet slicing workflow in the editor (`SpriteSheetSlicerModal`)
 
-### Architecture notes
-- Runtime draws directly to the screen (no intermediate RenderTarget used for ImGui), so it is lighter than editor Play Mode
-- Same update/draw loop as editor Play Mode, minus every editor-only system
+> **Experimental:** Animation features are in an early trial phase. They may contain bugs, incomplete paths, or behaviour that changes in later releases. Do not treat them as production-stable yet.
 
-### Known v1 Runtime limits (honest scope)
-- **Single boot scene** (`GameManifest.BootScenePath`) — designed so a future multi-scene manager can treat it as the first scene without redesign
-- **win-x64 only** for now (adding other RIDs is a small change in `ProjectBuilder`)
-- Window/taskbar icon at runtime is a long-standing MonoGame limitation; the `.exe` icon itself is reliable
+### Audio (experimental)
+- `AudioContext` and `AudioSource`
+- Editor-side audio icon / feedback hooks
 
-### Also included (from prior Community / LTS line)
-- Full custom **2D Physics** (`IPhysicsBackend2D`, `PhysicsWorld2D`, `Rigidbody2D`, Box/Circle colliders, raycast, collision callbacks)
-- Input System, Scripting + Hot Reload, Camera gizmo
-- Editor polish: dedicated Toolbar, vector icons in Content Browser, panel title-bar fix, font, layout
-- Content Browser folder tree + drag-and-drop move of assets/folders
-- Transform serialization fix, dirty tracking, ProjectSettings, Avalonia launcher
+> **Experimental:** Audio is also in an early trial phase. Playback, resource handling, and editor integration may be incomplete or unstable. Expect fixes and API adjustments in future snapshots.
+
+### Rendering abstraction — `IRenderer2D`
+- New interface **`IRenderer2D`**: a thin abstraction over 2D draw calls so gameplay and systems (sprites, animation, future backends) are not hard-wired to a single MonoGame `SpriteBatch` usage site
+- Default implementation: **`MonoGameRenderer2D`**
+- `RenderContext.Renderer2D` is the shared entry point used by editor Play Mode and the standalone Runtime
+
+This does not replace MonoGame; it isolates draw submission so a different 2D backend can be plugged in later without rewriting every renderer consumer.
+
+### Also carried from recent Community / LTS line
+- Standalone **Runtime** + **File > Build** pipeline (self-contained, ReadyToRun, win-x64)
+- Full custom **2D physics**
+- Input System, Scripting + Hot Reload
+- Editor polish (layout, theme, toolbar, content browser icons, panel title fix)
 
 ---
 
@@ -82,21 +73,22 @@ PreyEngine is an Iranian-made 2D game engine designed around a clean C# architec
 - SpriteRenderer, Camera2D
 - Input System
 - Scripting + Hot Reload
-- **2D Physics** (Rigidbody / Colliders / World / Raycast)
-- **GameManifest** (shared Editor ↔ Runtime DTO)
+- 2D Physics (Rigidbody / Colliders / World / Raycast)
+- GameManifest (Editor ↔ Runtime)
+- **IRenderer2D** + MonoGameRenderer2D
+- **Animation** (experimental)
+- **Audio** (experimental)
 
 ### Editor
 - Hierarchy, Inspector, Viewport (Play Mode), Content Browser, Console
-- Dedicated Toolbar (Play / Undo / Gizmos / Grid / Colliders)
-- Gizmos (World / Local), camera gizmo, collider overlays
-- Undo/Redo, adaptive grid, scene tabs
-- Live asset import, drag & drop, ProjectSettings
-- **Build Settings + Build** pipeline
+- Toolbar, layout, theme, icons
+- Gizmos, camera gizmo, collider overlays
+- Build Settings + Build
+- Sprite sheet slicer (experimental animation workflow)
 
 ### Runtime
 - Standalone player (`MyEngine.Runtime`)
-- Self-contained publish, ReadyToRun
-- No editor assemblies in the final binary
+- Depends only on Core — no editor assemblies in the final binary
 
 ### Launcher
 - Avalonia UI, splash, project and editor version management
@@ -108,11 +100,11 @@ PreyEngine is an Iranian-made 2D game engine designed around a clean C# architec
 ```
 PreyEngine-Source/
 ├── src/
-│   ├── MyEngine.Core/           # Core, Input, Scripting, Physics, GameManifest
-│   ├── MyEngine.Editor/         # ImGui editor + Build
+│   ├── MyEngine.Core/            # ECS, Physics, Input, Scripting, Animation, Audio, Rendering
+│   ├── MyEngine.Editor/          # ImGui editor + Build
 │   ├── MyEngine.EditorFramework/
-│   ├── MyEngine.Runtime/        # Standalone player (NEW)
-│   └── MyEngine.Launcher/       # Avalonia launcher
+│   ├── MyEngine.Runtime/         # Standalone player
+│   └── MyEngine.Launcher/        # Avalonia launcher
 ├── MyEngine.sln
 ├── LICENSE
 └── README.md
@@ -143,7 +135,8 @@ dotnet run --project src/MyEngine.Editor
 dotnet run --project src/MyEngine.Launcher
 ```
 
-To produce a standalone build: open a project in the Editor → **File > Build Settings…** → **File > Build**. Output appears under the project’s `Builds/` folder.
+Standalone build: open a project in the Editor → **File > Build Settings…** → **File > Build**.  
+Output appears under the project’s `Builds/` folder.
 
 ---
 
@@ -169,7 +162,8 @@ See [LICENSE](LICENSE) for the full text.
 
 ## Disclaimer
 
-This is a delayed Community snapshot of **LTS 1 — Eternal Rain** (**LTS 1.3.41**).  
-It is provided as-is. Mainline development continues under the policies described above.
+This is a delayed Community snapshot (**STS 11.5**).  
+It is provided as-is. Animation and audio subsystems are explicitly experimental.  
+Mainline development continues under the support windows described above.
 
 Thank you for your interest in PreyEngine.
