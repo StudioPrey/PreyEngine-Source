@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>MyEngine.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pinned to an exact version rather than a floating "3.8.*" — that wildcard resolves to whatever's
+         newest on NuGet at restore time, which right now is 3.8.5.x: a very recent (~2 months old) release
+         built on an entirely new native C++ layer replacing the old OpenTK/SharpDX wrappers. 3.8.4.1 is the
+         long-established, most-downloaded 3.8.x release (in production since October 2025) and predates
+         that rewrite — the safer target for a clean, reproducible release build. Bump deliberately, not by
+         floating, once a newer patch has been vetted. -->
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
+  </ItemGroup>
+
+</Project>
