@@ -1,0 +1,12 @@
+C:\Users\Asus\Desktop\MyEngine-LTS-1_4-Xc\MyEngine\src\MyEngine.EditorFramework\bin\Debug\net8.0\MyEngine.EditorFramework.deps.json
+C:\Users\Asus\Desktop\MyEngine-LTS-1_4-Xc\MyEngine\src\MyEngine.EditorFramework\bin\Debug\net8.0\MyEngine.EditorFramework.dll
+C:\Users\Asus\Desktop\MyEngine-LTS-1_4-Xc\MyEngine\src\MyEngine.EditorFramework\bin\Debug\net8.0\MyEngine.EditorFramework.pdb
+C:\Users\Asus\Desktop\MyEngine-LTS-1_4-Xc\MyEngine\src\MyEngine.EditorFramework\obj\Debug\net8.0\MyEngine.EditorFramework.csproj.AssemblyReference.cache
+C:\Users\Asus\Desktop\MyEngine-LTS-1_4-Xc\MyEngine\src\MyEngine.EditorFramework\obj\Debug\net8.0\MyEngine.EditorFramework.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Asus\Desktop\MyEngine-LTS-1_4-Xc\MyEngine\src\MyEngine.EditorFramework\obj\Debug\net8.0\MyEngine.EditorFramework.AssemblyInfoInputs.cache
+C:\Users\Asus\Desktop\MyEngine-LTS-1_4-Xc\MyEngine\src\MyEngine.EditorFramework\obj\Debug\net8.0\MyEngine.EditorFramework.AssemblyInfo.cs
+C:\Users\Asus\Desktop\MyEngine-LTS-1_4-Xc\MyEngine\src\MyEngine.EditorFramework\obj\Debug\net8.0\MyEngine.EditorFramework.csproj.CoreCompileInputs.cache
+C:\Users\Asus\Desktop\MyEngine-LTS-1_4-Xc\MyEngine\src\MyEngine.EditorFramework\obj\Debug\net8.0\MyEngine.EditorFramework.dll
+C:\Users\Asus\Desktop\MyEngine-LTS-1_4-Xc\MyEngine\src\MyEngine.EditorFramework\obj\Debug\net8.0\refint\MyEngine.EditorFramework.dll
+C:\Users\Asus\Desktop\MyEngine-LTS-1_4-Xc\MyEngine\src\MyEngine.EditorFramework\obj\Debug\net8.0\MyEngine.EditorFramework.pdb
+C:\Users\Asus\Desktop\MyEngine-LTS-1_4-Xc\MyEngine\src\MyEngine.EditorFramework\obj\Debug\net8.0\ref\MyEngine.EditorFramework.dll
