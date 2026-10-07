@@ -1,0 +1,9 @@
+This game was made with PreyEngine.
+
+PreyEngine
+Copyright (c) 2026 EasyPrey Studio
+
+PreyEngine is open-source software; its license terms are published with the
+engine's source code. This notice, and the license texts in the ThirdParty
+folder next to it, come with the engine's runtime and are shipped with every
+game built by it. Please keep them together with the game when you distribute it.
