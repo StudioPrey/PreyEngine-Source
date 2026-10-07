@@ -1,6 +1,7 @@
-MIT License
+MIT License with Attribution Clause
 
-Copyright (c) 2026 Arian Shahmohammadi (Easyprey Studio) — PreyEngine
+Copyright (c) 2026 Arian Shahmohammadi (Easyprey Studio)
+Project: PreyEngine (Community Edition)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -9,15 +10,18 @@ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-1. The above copyright notice and this permission notice shall be included in all
-   copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-2. Attribution Requirement:
-   Any use, distribution, modification, or derivative work of this Software
-   must give clear and visible credit to "PreyEngine" by Arian Shahmohammadi
-   (Easyprey Studio) as the original source. This attribution is mandatory
-   and must appear in documentation, about screens, README files, or
-   equivalent places where credits are normally shown.
+MANDATORY ATTRIBUTION REQUIREMENT:
+Any use, distribution, publication, modification, or derivative work based on
+the Software (whether in source or binary form, personal or commercial) must
+provide clear, visible, and prominent attribution to:
+
+    "PreyEngine" by Arian Shahmohammadi (Easyprey Studio)
+
+This attribution must be included in relevant end-user documentation, "About"
+screens, credit sequences, or visible engine notices of any distributed product.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -26,3 +30,33 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+--------------------------------------------------------------------------------
+THIRD-PARTY ACKNOWLEDGEMENTS AND LICENSES
+--------------------------------------------------------------------------------
+PreyEngine incorporates, links with, or bundles third-party software and assets
+licensed under their respective terms. A summarized inventory of upstream
+dependencies is outlined below:
+
+1. MonoGame Framework
+   - Project: MonoGame
+   - License: Microsoft Public License (Ms-PL)
+   - Copyright (c) The MonoGame Team
+
+2. ImGui.NET
+   - Project: ImGui.NET (C# bindings for Dear ImGui)
+   - License: MIT License
+   - Copyright (c) Eric Mellino and Dear ImGui contributors
+
+3. Avalonia UI
+   - Project: Avalonia (Used by Prey.Launcher)
+   - License: MIT License
+   - Copyright (c) The Avalonia UI Team
+
+4. Vazirmatn Typography
+   - Project: Vazirmatn Font
+   - License: SIL Open Font License, Version 1.1 (OFL-1.1)
+   - Copyright (c) Saber Rastikerdar and contributors
+
+Complete license texts for third-party components are preserved under the
+respective upstream packages or inside the engine's 'Notices/ThirdParty/' tree.
