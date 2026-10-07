@@ -1,0 +1,131 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MyEngine.Launcher.ViewModels"
+        x:Class="MyEngine.Launcher.Views.SplashWindow"
+        x:DataType="vm:SplashWindowViewModel"
+        Title="PreyEngine"
+        Width="560" Height="340"
+        WindowStartupLocation="CenterScreen"
+        CanResize="False"
+        SystemDecorations="None"
+        Background="{DynamicResource PreyBg}"
+        Foreground="{DynamicResource PreyText}"
+        Icon="/Assets/app-icon.png">
+
+  <!--
+    Intro, in order (the code-behind adds the "in" / "go" classes on a timer, the styles below animate the change):
+      1. the logo fades up and settles from slightly smaller
+      2. the name and the tagline rise into place
+      3. one accent-coloured glint crosses the logo, clipped to the logo's own shape
+    The thin line at the bottom is a real progress bar: it moves as each startup step finishes.
+  -->
+  <Window.Styles>
+
+    <Style Selector="Border.splashRoot">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.38" Easing="CubicEaseInOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.splashRoot.leaving">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+
+    <Style Selector="Viewbox.splashMark">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="RenderTransform" Value="scale(0.88)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.9" Easing="CubicEaseOut" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:1.1" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Viewbox.splashMark.in">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="RenderTransform" Value="none" />
+    </Style>
+
+    <Style Selector="TextBlock.splashWord">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="RenderTransform" Value="translateY(10px)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.7" Easing="CubicEaseOut" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.8" Easing="CubicEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="TextBlock.splashWord.in">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="RenderTransform" Value="none" />
+    </Style>
+
+    <Style Selector="Border.sweep">
+      <Setter Property="Margin" Value="-44,0,0,0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <ThicknessTransition Property="Margin" Duration="0:0:1.1" Easing="CubicEaseInOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.sweep.go">
+      <Setter Property="Margin" Value="124,0,0,0" />
+    </Style>
+
+  </Window.Styles>
+
+  <Border x:Name="Root" Classes="splashRoot"
+          Background="{DynamicResource PreyBg}"
+          BorderBrush="{DynamicResource PreyLine}" BorderThickness="1">
+    <Grid RowDefinitions="*,Auto">
+
+      <!-- soft glow behind the logo -->
+      <Border Grid.RowSpan="2" IsHitTestVisible="False">
+        <Border.Background>
+          <RadialGradientBrush Center="50%,42%" GradientOrigin="50%,42%">
+            <GradientStop Offset="0" Color="{DynamicResource PreyGlowColor}" />
+            <GradientStop Offset="1" Color="{DynamicResource PreyGlowClearColor}" />
+          </RadialGradientBrush>
+        </Border.Background>
+      </Border>
+
+      <StackPanel Grid.Row="0" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-6,0,0">
+
+        <Viewbox x:Name="Mark" Classes="splashMark" Width="96" Height="104" HorizontalAlignment="Center">
+          <!-- 92.94 x 100 = the bounds of the traced logo geometry, so the clip lines up with it exactly -->
+          <Panel Width="92.94" Height="100" Clip="{StaticResource PreyMark}">
+            <Path Data="{StaticResource PreyMark}" Fill="{DynamicResource PreyText}" />
+            <Border x:Name="Sweep" Classes="sweep" Width="30" Height="170"
+                    HorizontalAlignment="Left" VerticalAlignment="Center"
+                    RenderTransform="skewX(-18deg)">
+              <Border.Background>
+                <LinearGradientBrush StartPoint="0%,50%" EndPoint="100%,50%">
+                  <GradientStop Offset="0" Color="{DynamicResource PreyAccentClearColor}" />
+                  <GradientStop Offset="0.5" Color="{DynamicResource PreyAccentColor}" />
+                  <GradientStop Offset="1" Color="{DynamicResource PreyAccentClearColor}" />
+                </LinearGradientBrush>
+              </Border.Background>
+            </Border>
+          </Panel>
+        </Viewbox>
+
+        <TextBlock x:Name="Wordmark" Classes="splashWord" Text="PreyEngine"
+                   FontSize="30" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,24,0,0" />
+        <TextBlock x:Name="Tagline" Classes="splashWord" Text="2D game engine"
+                   FontSize="13" Foreground="{DynamicResource PreyTextMuted}" HorizontalAlignment="Center" Margin="0,6,0,0" />
+
+      </StackPanel>
+
+      <Grid Grid.Row="1" RowDefinitions="Auto,Auto">
+        <TextBlock Grid.Row="0" Classes="caption" Text="{Binding StatusText}" Margin="26,0,26,12" />
+        <ProgressBar Grid.Row="1" Classes="thin" Height="2" MinHeight="2" CornerRadius="0"
+                     Minimum="0" Maximum="1" Value="{Binding Progress}" />
+      </Grid>
+
+    </Grid>
+  </Border>
+
+</Window>

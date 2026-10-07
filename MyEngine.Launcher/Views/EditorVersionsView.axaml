@@ -1,0 +1,100 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MyEngine.Launcher.Views.EditorVersionsView">
+
+  <!-- DataContext is the MainWindowViewModel; the add / remove / set-default logic lives in its EditorVersions child
+       (EditorVersionManagerViewModel), exactly as the old Manage Versions window used it. -->
+  <Grid RowDefinitions="Auto,*" Margin="36,32,36,28">
+
+    <StackPanel Spacing="4">
+      <TextBlock Classes="h1" Text="Editor versions" />
+      <TextBlock Classes="caption" Text="Each project opens with one of these builds of the editor." />
+    </StackPanel>
+
+    <Grid Grid.Row="1" ColumnDefinitions="*,28,340" Margin="0,26,0,0">
+
+      <!-- Installed versions -->
+      <Grid Grid.Column="0" RowDefinitions="*,Auto">
+
+        <Panel Grid.Row="0">
+          <ListBox ItemsSource="{Binding EditorVersions.Versions}"
+                   SelectedItem="{Binding EditorVersions.SelectedRow}"
+                   ItemContainerTheme="{StaticResource VersionListItem}"
+                   Background="Transparent" BorderThickness="0" Padding="0">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <Grid ColumnDefinitions="Auto,*,Auto" Margin="16,14">
+                  <Border Width="40" Height="40" CornerRadius="13,3,13,3" VerticalAlignment="Center"
+                          Background="{DynamicResource PreySurface}"
+                          BorderBrush="{DynamicResource PreyLine}" BorderThickness="1">
+                    <Path Classes="icon" Data="{StaticResource IconTerminal}" Width="20" Height="20"
+                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+
+                  <StackPanel Grid.Column="1" Margin="14,0,12,0" Spacing="3" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Classes="rowTitle" Text="{Binding Label}" />
+                      <Border Classes="chip accent" Padding="8,2" IsVisible="{Binding IsDefault}">
+                        <TextBlock Classes="caption" Text="Default" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource PreyAccent}" />
+                      </Border>
+                    </StackPanel>
+                    <TextBlock Classes="caption" Text="{Binding FolderPath}" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+
+                  <TextBlock Grid.Column="2" Classes="caption warn" Text="{Binding StatusText}"
+                             VerticalAlignment="Center" IsVisible="{Binding !IsValid}" />
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10" MaxWidth="300"
+                      IsVisible="{Binding HasNoEditorVersions}">
+            <Path Classes="icon" Data="{StaticResource IconTerminal}" Width="30" Height="30"
+                  Stroke="{DynamicResource PreyTextFaint}" HorizontalAlignment="Center" />
+            <TextBlock Classes="h2" Text="No editor yet" HorizontalAlignment="Center" />
+            <TextBlock Classes="muted" TextAlignment="Center"
+                       Text="Add the folder of a built editor using the form on the right." />
+          </StackPanel>
+        </Panel>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
+          <Button Theme="{StaticResource GhostButton}" Content="Set as default"
+                  Command="{Binding EditorVersions.SetDefaultCommand}" IsEnabled="{Binding EditorVersions.CanSetDefault}" />
+          <Button Theme="{StaticResource QuietButton}" Content="Remove"
+                  Command="{Binding EditorVersions.RemoveCommand}" IsEnabled="{Binding EditorVersions.CanRemove}" />
+          <TextBlock Classes="caption" Text="{Binding EditorVersions.StatusMessage}"
+                     VerticalAlignment="Center" Margin="8,0,0,0" />
+        </StackPanel>
+
+      </Grid>
+
+      <!-- Add a version -->
+      <Border Grid.Column="2" Classes="panel" VerticalAlignment="Top">
+        <StackPanel Spacing="14">
+          <StackPanel Spacing="6">
+            <TextBlock Text="Add an editor version" FontSize="16" FontWeight="Bold" />
+            <TextBlock Classes="muted" FontSize="12.5"
+                       Text="Pick the folder that holds a built copy of the editor, for example its bin\Debug\net8.0 output." />
+          </StackPanel>
+
+          <TextBox Watermark="Version name, e.g. 1.7" Text="{Binding EditorVersions.NewLabel}" />
+
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBox Watermark="Editor build folder" Text="{Binding EditorVersions.NewFolderPath}" />
+            <Button Grid.Column="1" Theme="{StaticResource GhostButton}" Margin="8,0,0,0" Width="46" Height="42"
+                    Padding="0" Click="OnBrowseClick" ToolTip.Tip="Browse for a folder">
+              <Path Classes="icon" Data="{StaticResource IconFolderOpen}" Width="18" Height="18" />
+            </Button>
+          </Grid>
+
+          <Button Theme="{StaticResource PrimaryButton}" Content="Add version" HorizontalAlignment="Stretch"
+                  Command="{Binding EditorVersions.AddCommand}" />
+        </StackPanel>
+      </Border>
+
+    </Grid>
+  </Grid>
+
+</UserControl>

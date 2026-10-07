@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MyEngine.Launcher.Views.LaunchProgressView">
+
+  <StackPanel Spacing="22">
+
+    <StackPanel Spacing="6">
+      <TextBlock Classes="h2" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+      <TextBlock Classes="muted" Text="{Binding Subtitle}" IsVisible="{Binding IsRunning}" />
+    </StackPanel>
+
+    <ProgressBar Classes="thin" Minimum="0" Maximum="1" Value="{Binding Progress}" />
+
+    <ItemsControl ItemsSource="{Binding Steps}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate>
+          <Grid ColumnDefinitions="30,*" Margin="0,5">
+
+            <Panel Width="20" Height="20" HorizontalAlignment="Left" VerticalAlignment="Center">
+              <Border Width="9" Height="9" CornerRadius="5"
+                      BorderBrush="{DynamicResource PreyLineStrong}" BorderThickness="1.5"
+                      IsVisible="{Binding IsPending}" />
+              <Border Classes="pulse" Width="10" Height="10" CornerRadius="5"
+                      Background="{DynamicResource PreyAccent}" IsVisible="{Binding IsActive}" />
+              <Border Width="20" Height="20" CornerRadius="10"
+                      Background="{DynamicResource PreyAccent}" IsVisible="{Binding IsDone}">
+                <Path Classes="icon" Data="{StaticResource IconCheck}" Width="12" Height="12" StrokeThickness="2.4"
+                      Stroke="{DynamicResource PreyOnAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <Border Width="20" Height="20" CornerRadius="10"
+                      Background="{DynamicResource PreyDanger}" IsVisible="{Binding IsFailed}">
+                <Path Classes="icon" Data="{StaticResource IconClose}" Width="11" Height="11" StrokeThickness="2.4"
+                      Stroke="{DynamicResource PreyOnAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+            </Panel>
+
+            <TextBlock Grid.Column="1" Classes="step"
+                       Classes.active="{Binding IsActive}"
+                       Classes.done="{Binding IsDone}"
+                       Classes.failed="{Binding IsFailed}"
+                       Text="{Binding Title}" />
+
+          </Grid>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <Border Classes="errorbox" IsVisible="{Binding HasFailed}">
+      <Grid ColumnDefinitions="Auto,*">
+        <Path Classes="icon" Data="{StaticResource IconWarning}" Width="20" Height="20"
+              Stroke="{DynamicResource PreyDanger}" VerticalAlignment="Top" Margin="0,1,12,0" />
+        <TextBlock Grid.Column="1" Text="{Binding ErrorMessage}" TextWrapping="Wrap" FontSize="13.5" />
+      </Grid>
+    </Border>
+
+    <Button Theme="{StaticResource GhostButton}" Content="Close" HorizontalAlignment="Right"
+            Command="{Binding DismissCommand}" IsVisible="{Binding HasFailed}" />
+
+  </StackPanel>
+
+</UserControl>

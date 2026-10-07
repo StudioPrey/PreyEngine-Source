@@ -1,0 +1,91 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MyEngine.Launcher.Views.NewProjectView">
+
+  <StackPanel Spacing="24">
+
+    <!-- Title + step indicator -->
+    <Grid ColumnDefinitions="*,Auto">
+      <StackPanel Spacing="4" VerticalAlignment="Center">
+        <TextBlock Classes="h2" Text="Choose a project type" IsVisible="{Binding IsStep1}" />
+        <TextBlock Classes="h2" Text="Name your project" IsVisible="{Binding IsStep2}" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+        <Border Classes="stepbar on" />
+        <Border Classes="stepbar" Classes.on="{Binding IsStep2}" />
+      </StackPanel>
+    </Grid>
+
+    <!-- Step 1: type -->
+    <StackPanel Spacing="26" IsVisible="{Binding IsStep1}">
+
+      <Border Classes="typecard">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <Border Width="46" Height="46" CornerRadius="15,4,15,4" VerticalAlignment="Top"
+                  Background="{DynamicResource PreySurface}"
+                  BorderBrush="{DynamicResource PreyLine}" BorderThickness="1">
+            <Path Classes="icon" Data="{StaticResource IconLayers}" Width="22" Height="22"
+                  Stroke="{DynamicResource PreyAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <StackPanel Grid.Column="1" Margin="16,0,12,0" Spacing="4">
+            <TextBlock Text="{Binding TypeTitle}" FontSize="16" FontWeight="Bold" />
+            <TextBlock Classes="muted" Text="{Binding TypeDescription}" />
+          </StackPanel>
+          <Border Grid.Column="2" Width="22" Height="22" CornerRadius="11" VerticalAlignment="Top"
+                  Background="{DynamicResource PreyAccent}">
+            <Path Classes="icon" Data="{StaticResource IconCheck}" Width="13" Height="13" StrokeThickness="2.4"
+                  Stroke="{DynamicResource PreyOnAccent}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+        </Grid>
+      </Border>
+
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <Button Theme="{StaticResource QuietButton}" Content="Cancel" Command="{Binding CancelCommand}" />
+        <Button Grid.Column="2" Theme="{StaticResource PrimaryButton}" Command="{Binding NextCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="Next" VerticalAlignment="Center" />
+            <Path Classes="icon" Data="{StaticResource IconChevronRight}" Width="16" Height="16" StrokeThickness="2.2" />
+          </StackPanel>
+        </Button>
+      </Grid>
+
+    </StackPanel>
+
+    <!-- Step 2: name + location -->
+    <StackPanel Spacing="18" IsVisible="{Binding IsStep2}">
+
+      <StackPanel Spacing="8">
+        <TextBlock Classes="caption" Text="Project name" />
+        <TextBox Text="{Binding Name}" Watermark="MyGame" />
+      </StackPanel>
+
+      <StackPanel Spacing="8">
+        <TextBlock Classes="caption" Text="Location" />
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBox Text="{Binding Location}" Watermark="Folder that will hold the project" />
+          <Button Grid.Column="1" Theme="{StaticResource GhostButton}" Margin="8,0,0,0" Width="46" Height="42"
+                  Padding="0" Click="OnBrowseClick" ToolTip.Tip="Browse for a folder">
+            <Path Classes="icon" Data="{StaticResource IconFolderOpen}" Width="18" Height="18" />
+          </Button>
+        </Grid>
+      </StackPanel>
+
+      <TextBlock Classes="warn" FontSize="13" TextWrapping="Wrap"
+                 Text="{Binding ValidationMessage}" IsVisible="{Binding HasValidationMessage}" />
+
+      <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,6,0,0">
+        <Button Theme="{StaticResource QuietButton}" Command="{Binding BackCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Path Classes="icon" Data="{StaticResource IconArrowLeft}" Width="16" Height="16" StrokeThickness="2" />
+            <TextBlock Text="Back" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <Button Grid.Column="2" Theme="{StaticResource PrimaryButton}" Content="Create project"
+                Command="{Binding CreateCommand}" IsEnabled="{Binding CanCreate}" />
+      </Grid>
+
+    </StackPanel>
+
+  </StackPanel>
+
+</UserControl>

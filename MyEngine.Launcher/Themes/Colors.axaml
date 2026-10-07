@@ -1,0 +1,173 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    Launcher palette. Everything in the UI refers to the Prey* keys below with {DynamicResource ...}
+    so switching the theme variant (Settings > Appearance) repaints the whole launcher live.
+
+    Dark  : black with a little blue, and grays.
+    Light : white with a little green, and light blue.
+
+    The second half of each dictionary re-colours the stock Fluent controls (text boxes, menus, toggles,
+    tooltips, progress bars) so they match without re-templating them.
+  -->
+
+  <ResourceDictionary.ThemeDictionaries>
+
+    <!-- ============================== DARK ============================== -->
+    <ResourceDictionary x:Key="Dark">
+      <Color x:Key="PreyAccentColor">#4F8CFF</Color>
+      <Color x:Key="PreyAccentClearColor">#004F8CFF</Color>
+      <Color x:Key="PreyGlowColor">#2B3F78F0</Color>
+      <Color x:Key="PreyGlowClearColor">#003F78F0</Color>
+
+      <SolidColorBrush x:Key="PreyBg">#05070B</SolidColorBrush>
+      <SolidColorBrush x:Key="PreySurface">#0B0F16</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyRaised">#111823</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyRaisedHover">#19222F</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyLine">#1A2230</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyLineStrong">#2B3649</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyText">#EDF1F7</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyTextMuted">#95A0B2</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyTextFaint">#5E697B</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyAccent">#4F8CFF</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyAccentSoft">#1C4F8CFF</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyOnAccent">#05070B</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyPrimary">#F2F5FA</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyPrimaryHover">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyOnPrimary">#05070B</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyDanger">#FF7A70</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyDangerSoft">#1FFF6B61</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyWarn">#F0B24A</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyScrim">#B3020306</SolidColorBrush>
+
+      <!-- Fluent overrides -->
+      <Color x:Key="SystemAccentColor">#4F8CFF</Color>
+      <Color x:Key="SystemAccentColorLight1">#6FA1FF</Color>
+      <Color x:Key="SystemAccentColorLight2">#8FB6FF</Color>
+      <Color x:Key="SystemAccentColorLight3">#AFCBFF</Color>
+      <Color x:Key="SystemAccentColorDark1">#3A74E0</Color>
+      <Color x:Key="SystemAccentColorDark2">#2C5DBF</Color>
+      <Color x:Key="SystemAccentColorDark3">#1F4796</Color>
+
+      <SolidColorBrush x:Key="TextControlBackground">#0F1520</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBackgroundPointerOver">#131B28</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBackgroundFocused">#0F1520</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBorderBrush">#2B3649</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBorderBrushPointerOver">#3A4863</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBorderBrushFocused">#4F8CFF</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlForeground">#EDF1F7</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlForegroundPointerOver">#EDF1F7</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlForegroundFocused">#EDF1F7</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlPlaceholderForeground">#5E697B</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlPlaceholderForegroundPointerOver">#5E697B</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused">#5E697B</SolidColorBrush>
+
+      <SolidColorBrush x:Key="MenuFlyoutPresenterBackground">#111823</SolidColorBrush>
+      <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush">#2B3649</SolidColorBrush>
+      <SolidColorBrush x:Key="MenuFlyoutItemBackground">#00000000</SolidColorBrush>
+      <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver">#1C2635</SolidColorBrush>
+      <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPressed">#232F42</SolidColorBrush>
+      <SolidColorBrush x:Key="MenuFlyoutItemForeground">#EDF1F7</SolidColorBrush>
+      <SolidColorBrush x:Key="MenuFlyoutItemForegroundPointerOver">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="MenuFlyoutItemForegroundPressed">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="MenuFlyoutSeparatorBackground">#2B3649</SolidColorBrush>
+
+      <SolidColorBrush x:Key="ToolTipBackground">#19222F</SolidColorBrush>
+      <SolidColorBrush x:Key="ToolTipForeground">#EDF1F7</SolidColorBrush>
+      <SolidColorBrush x:Key="ToolTipBorderBrush">#2B3649</SolidColorBrush>
+
+      <SolidColorBrush x:Key="ToggleSwitchFillOff">#00000000</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchFillOffPointerOver">#00000000</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchStrokeOff">#5E697B</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchStrokeOffPointerOver">#95A0B2</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchKnobFillOff">#95A0B2</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPointerOver">#EDF1F7</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchFillOn">#4F8CFF</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver">#6FA1FF</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchStrokeOn">#4F8CFF</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver">#6FA1FF</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchKnobFillOn">#05070B</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver">#05070B</SolidColorBrush>
+    </ResourceDictionary>
+
+    <!-- ============================== LIGHT ============================= -->
+    <ResourceDictionary x:Key="Light">
+      <Color x:Key="PreyAccentColor">#12936B</Color>
+      <Color x:Key="PreyAccentClearColor">#0012936B</Color>
+      <Color x:Key="PreyGlowColor">#3A7CC8E8</Color>
+      <Color x:Key="PreyGlowClearColor">#007CC8E8</Color>
+
+      <SolidColorBrush x:Key="PreyBg">#E5EFEC</SolidColorBrush>
+      <SolidColorBrush x:Key="PreySurface">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyRaised">#F1F8F6</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyRaisedHover">#E2F0F2</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyLine">#DAE7E3</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyLineStrong">#BCD2CC</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyText">#0D1C19</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyTextMuted">#4A5F59</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyTextFaint">#7C928C</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyAccent">#12936B</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyAccentSoft">#DBEEF8</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyOnAccent">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyPrimary">#0D1C19</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyPrimaryHover">#1C3530</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyOnPrimary">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyDanger">#C9362C</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyDangerSoft">#17C9362C</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyWarn">#A15F00</SolidColorBrush>
+      <SolidColorBrush x:Key="PreyScrim">#A60D1C19</SolidColorBrush>
+
+      <!-- Fluent overrides -->
+      <Color x:Key="SystemAccentColor">#12936B</Color>
+      <Color x:Key="SystemAccentColorLight1">#2FAE86</Color>
+      <Color x:Key="SystemAccentColorLight2">#57C3A0</Color>
+      <Color x:Key="SystemAccentColorLight3">#86D6BC</Color>
+      <Color x:Key="SystemAccentColorDark1">#0E7A58</Color>
+      <Color x:Key="SystemAccentColorDark2">#0B6247</Color>
+      <Color x:Key="SystemAccentColorDark3">#084A36</Color>
+
+      <SolidColorBrush x:Key="TextControlBackground">#F6FAF9</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBackgroundPointerOver">#EEF6F4</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBackgroundFocused">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBorderBrush">#BCD2CC</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBorderBrushPointerOver">#9DB9B1</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlBorderBrushFocused">#12936B</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlForeground">#0D1C19</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlForegroundPointerOver">#0D1C19</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlForegroundFocused">#0D1C19</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlPlaceholderForeground">#7C928C</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlPlaceholderForegroundPointerOver">#7C928C</SolidColorBrush>
+      <SolidColorBrush x:Key="TextControlPlaceholderForegroundFocused">#7C928C</SolidColorBrush>
+
+      <SolidColorBrush x:Key="MenuFlyoutPresenterBackground">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush">#BCD2CC</SolidColorBrush>
+      <SolidColorBrush x:Key="MenuFlyoutItemBackground">#00FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPointerOver">#E2F0F2</SolidColorBrush>
+      <SolidColorBrush x:Key="MenuFlyoutItemBackgroundPressed">#D3E7EC</SolidColorBrush>
+      <SolidColorBrush x:Key="MenuFlyoutItemForeground">#0D1C19</SolidColorBrush>
+      <SolidColorBrush x:Key="MenuFlyoutItemForegroundPointerOver">#0D1C19</SolidColorBrush>
+      <SolidColorBrush x:Key="MenuFlyoutItemForegroundPressed">#0D1C19</SolidColorBrush>
+      <SolidColorBrush x:Key="MenuFlyoutSeparatorBackground">#DAE7E3</SolidColorBrush>
+
+      <SolidColorBrush x:Key="ToolTipBackground">#0D1C19</SolidColorBrush>
+      <SolidColorBrush x:Key="ToolTipForeground">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="ToolTipBorderBrush">#0D1C19</SolidColorBrush>
+
+      <SolidColorBrush x:Key="ToggleSwitchFillOff">#00FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchFillOffPointerOver">#00FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchStrokeOff">#7C928C</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchStrokeOffPointerOver">#4A5F59</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchKnobFillOff">#4A5F59</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPointerOver">#0D1C19</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchFillOn">#12936B</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver">#2FAE86</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchStrokeOn">#12936B</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver">#2FAE86</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchKnobFillOn">#FFFFFF</SolidColorBrush>
+      <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver">#FFFFFF</SolidColorBrush>
+    </ResourceDictionary>
+
+  </ResourceDictionary.ThemeDictionaries>
+
+</ResourceDictionary>

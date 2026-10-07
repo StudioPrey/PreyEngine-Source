@@ -1,0 +1,129 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MyEngine.Launcher.Views.ProjectsView">
+
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="36,32,36,20">
+
+    <!-- Header -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+      <StackPanel Spacing="4" VerticalAlignment="Center">
+        <TextBlock Classes="h1" Text="Projects" />
+        <TextBlock Classes="caption" Text="{Binding ProjectCountText}" />
+      </StackPanel>
+
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+        <Button Theme="{StaticResource GhostButton}" Click="OnOpenFolderClick">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Path Classes="icon" Data="{StaticResource IconFolderOpen}" Width="18" Height="18" />
+            <TextBlock Text="Open folder" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <Button Theme="{StaticResource PrimaryButton}" Command="{Binding NewProjectCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Path Classes="icon" Data="{StaticResource IconPlus}" Width="16" Height="16" StrokeThickness="2.2" />
+            <TextBlock Text="New project" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
+    </Grid>
+
+    <!-- Column headings -->
+    <Border Grid.Row="1" Margin="0,26,0,6" Padding="0,0,0,10"
+            BorderBrush="{DynamicResource PreyLine}" BorderThickness="0,0,0,1"
+            IsVisible="{Binding HasProjects}">
+      <Grid ColumnDefinitions="64,*,120,150,130,96,44">
+        <TextBlock Grid.Column="1" Classes="colhead" Text="Name" />
+        <TextBlock Grid.Column="2" Classes="colhead" Text="Created" />
+        <TextBlock Grid.Column="3" Classes="colhead" Text="Last opened" />
+        <TextBlock Grid.Column="4" Classes="colhead" Text="Editor" />
+      </Grid>
+    </Border>
+
+    <!-- Project rows -->
+    <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding HasProjects}">
+      <ItemsControl ItemsSource="{Binding Projects}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Border Classes="row">
+              <Grid ColumnDefinitions="64,*,120,150,130,96,44">
+
+                <Border Grid.Column="0" Classes="tile" Classes.pinned="{Binding IsPinned}"
+                        HorizontalAlignment="Left" Margin="12,0,0,0">
+                  <TextBlock Text="{Binding Monogram}" FontSize="16" FontWeight="Bold"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+
+                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center" Margin="0,0,16,0">
+                  <Grid ColumnDefinitions="Auto,Auto,*">
+                    <TextBlock Grid.Column="0" Classes="rowTitle" Text="{Binding Name}" TextTrimming="CharacterEllipsis" MaxWidth="320" />
+                    <Path Grid.Column="1" Classes="icon" Data="{StaticResource IconPin}" Width="13" Height="13"
+                          Stroke="{DynamicResource PreyAccent}" Margin="8,0,0,0" VerticalAlignment="Center"
+                          IsVisible="{Binding IsPinned}" ToolTip.Tip="Pinned to the top" />
+                  </Grid>
+                  <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Classes="caption" Text="{Binding Path}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="1" Classes="caption warn" Text="Folder not found" FontWeight="SemiBold"
+                               Margin="10,0,0,0" IsVisible="{Binding IsMissing}" />
+                  </Grid>
+                </StackPanel>
+
+                <TextBlock Grid.Column="2" Classes="cell" Text="{Binding CreatedDisplay}" VerticalAlignment="Center" />
+
+                <StackPanel Grid.Column="3" Spacing="2" VerticalAlignment="Center" ToolTip.Tip="{Binding LastOpenedFull}">
+                  <TextBlock Classes="cell" Text="{Binding LastOpenedDisplay}" />
+                  <TextBlock Classes="caption" Text="{Binding LastOpenedRelative}" Foreground="{DynamicResource PreyTextFaint}" />
+                </StackPanel>
+
+                <Border Grid.Column="4" Classes="chip" Classes.problem="{Binding VersionIsProblem}">
+                  <TextBlock Classes="caption" Text="{Binding VersionLabel}" Foreground="{DynamicResource PreyText}"
+                             TextTrimming="CharacterEllipsis" MaxWidth="96" />
+                </Border>
+
+                <Button Grid.Column="5" Theme="{StaticResource GhostButton}" Content="Open" Padding="16,7"
+                        HorizontalAlignment="Center" VerticalAlignment="Center" Command="{Binding OpenCommand}" />
+
+                <Button Grid.Column="6" Theme="{StaticResource IconButton}" ToolTip.Tip="More options"
+                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                  <Path Classes="icon" Data="{StaticResource IconMoreVertical}" Width="18" Height="18" StrokeThickness="3" />
+                  <Button.Flyout>
+                    <MenuFlyout Placement="BottomEdgeAlignedRight">
+                      <MenuItem Header="{Binding PinMenuText}" Command="{Binding TogglePinCommand}" />
+                      <MenuItem Header="Editor version" ItemsSource="{Binding VersionChoices}">
+                        <MenuItem.Styles>
+                          <Style Selector="MenuItem">
+                            <Setter Property="Header" Value="{Binding Display}" />
+                            <Setter Property="Command" Value="{Binding SelectCommand}" />
+                          </Style>
+                        </MenuItem.Styles>
+                      </MenuItem>
+                      <Separator />
+                      <MenuItem Header="Remove from list" Command="{Binding RemoveCommand}" />
+                    </MenuFlyout>
+                  </Button.Flyout>
+                </Button>
+
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+
+    <!-- Empty state -->
+    <StackPanel Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="14" MaxWidth="360"
+                IsVisible="{Binding HasNoProjects}">
+      <Path Classes="mark" Data="{StaticResource PreyMark}" Width="46" Height="50" HorizontalAlignment="Center"
+            Fill="{DynamicResource PreyTextFaint}" />
+      <TextBlock Classes="h2" Text="No projects yet" HorizontalAlignment="Center" />
+      <TextBlock Classes="muted" TextAlignment="Center"
+                 Text="Create a project to start building, or open a folder that already holds one." />
+      <Button Theme="{StaticResource PrimaryButton}" Content="Create your first project"
+              HorizontalAlignment="Center" Margin="0,6,0,0" Command="{Binding NewProjectCommand}" />
+    </StackPanel>
+
+    <!-- Status line -->
+    <TextBlock Grid.Row="3" Classes="caption" Text="{Binding StatusMessage}" Margin="0,12,0,0" TextTrimming="CharacterEllipsis" />
+
+  </Grid>
+
+</UserControl>

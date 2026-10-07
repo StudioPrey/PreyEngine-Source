@@ -1,0 +1,113 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MyEngine.Launcher.ViewModels"
+        xmlns:views="using:MyEngine.Launcher.Views"
+        x:Class="MyEngine.Launcher.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="PreyEngine Launcher"
+        Width="1120" Height="720"
+        MinWidth="940" MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource PreyBg}"
+        Foreground="{DynamicResource PreyText}"
+        Icon="/Assets/app-icon.png">
+
+  <Grid>
+
+    <Grid ColumnDefinitions="76,*">
+
+      <!-- ================= Sidebar ================= -->
+      <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto" Margin="0,22,0,18">
+
+        <Path Grid.Row="0" Classes="mark" Data="{StaticResource PreyMark}"
+              Width="28" Height="30" HorizontalAlignment="Center" Margin="0,2,0,30"
+              ToolTip.Tip="PreyEngine" />
+
+        <StackPanel Grid.Row="1" Spacing="6">
+
+          <Grid Height="52">
+            <Border Classes="blade" IsVisible="{Binding IsProjectsPage}" />
+            <Button Theme="{StaticResource NavButton}" Classes.active="{Binding IsProjectsPage}"
+                    Command="{Binding ShowProjectsCommand}" ToolTip.Tip="Projects"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Path Classes="icon" Data="{StaticResource IconFolder}" Width="22" Height="22" />
+            </Button>
+          </Grid>
+
+          <Grid Height="52">
+            <Border Classes="blade" IsVisible="{Binding IsEditorVersionsPage}" />
+            <Button Theme="{StaticResource NavButton}" Classes.active="{Binding IsEditorVersionsPage}"
+                    Command="{Binding ShowEditorVersionsCommand}" ToolTip.Tip="Editor versions"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Path Classes="icon" Data="{StaticResource IconTerminal}" Width="22" Height="22" />
+            </Button>
+          </Grid>
+
+          <Grid Height="52">
+            <Border Classes="blade" IsVisible="{Binding IsDocsPage}" />
+            <Button Theme="{StaticResource NavButton}" Classes.active="{Binding IsDocsPage}"
+                    Command="{Binding ShowDocsCommand}" ToolTip.Tip="Documentation"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+              <Path Classes="icon" Data="{StaticResource IconNewspaper}" Width="22" Height="22" />
+            </Button>
+          </Grid>
+
+        </StackPanel>
+
+        <Grid Grid.Row="2" Height="52">
+          <Border Classes="blade" IsVisible="{Binding IsSettingsPage}" />
+          <Button Theme="{StaticResource NavButton}" Classes.active="{Binding IsSettingsPage}"
+                  Command="{Binding ShowSettingsCommand}" ToolTip.Tip="Settings"
+                  HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Path Classes="icon" Data="{StaticResource IconGear}" Width="22" Height="22" />
+          </Button>
+        </Grid>
+
+      </Grid>
+
+      <!-- ================= Pages ================= -->
+      <Border Grid.Column="1" Margin="0,10,10,10"
+              Background="{DynamicResource PreySurface}"
+              BorderBrush="{DynamicResource PreyLine}" BorderThickness="1"
+              CornerRadius="28,6,28,6">
+        <Grid>
+
+          <Panel Classes="page" Classes.shown="{Binding IsProjectsPage}" IsVisible="{Binding IsProjectsPage}">
+            <views:ProjectsView />
+          </Panel>
+
+          <Panel Classes="page" Classes.shown="{Binding IsEditorVersionsPage}" IsVisible="{Binding IsEditorVersionsPage}">
+            <views:EditorVersionsView />
+          </Panel>
+
+          <Panel Classes="page" Classes.shown="{Binding IsDocsPage}" IsVisible="{Binding IsDocsPage}">
+            <views:DocsView />
+          </Panel>
+
+          <Panel Classes="page" Classes.shown="{Binding IsSettingsPage}" IsVisible="{Binding IsSettingsPage}">
+            <views:SettingsView DataContext="{Binding Settings}" />
+          </Panel>
+
+        </Grid>
+      </Border>
+
+    </Grid>
+
+    <!-- ================= Overlay: New project wizard / launch progress ================= -->
+    <Grid IsVisible="{Binding IsOverlayVisible}">
+      <Border Background="{DynamicResource PreyScrim}" />
+
+      <Border Classes="card" Classes.open="{Binding NewProject.IsOpen}" IsVisible="{Binding NewProject.IsOpen}"
+              Width="540" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <views:NewProjectView DataContext="{Binding NewProject}" />
+      </Border>
+
+      <Border Classes="card" Classes.open="{Binding Launch.IsActive}" IsVisible="{Binding Launch.IsActive}"
+              Width="500" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <views:LaunchProgressView DataContext="{Binding Launch}" />
+      </Border>
+    </Grid>
+
+  </Grid>
+
+</Window>
