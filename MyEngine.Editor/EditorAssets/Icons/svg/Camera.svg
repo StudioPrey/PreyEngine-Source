@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Camera: vector master. White mask on a 64x64 canvas; the Editor tints it at draw time. Edit freely, then run tools/IconBake/bake_icons.py. -->
+  <path fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="miter" d="M12.8 21.76 L38.4 21.76 L38.4 42.24 L12.8 42.24 Z"/>
+  <path fill="#fff" d="M39.68 32 L51.2 23.04 L51.2 40.96 Z"/>
+</svg>

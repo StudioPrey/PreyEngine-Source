@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- FolderUp: vector master. White mask on a 64x64 canvas; the Editor tints it at draw time. Edit freely, then run tools/IconBake/bake_icons.py. -->
+  <path fill="#fff" fill-opacity="0.376" d="M0 2.56 L35.2 2.56 L35.2 11.24 L0 11.24 Z M0 10.24 L64 10.24 L64 64 L0 64 Z"/>
+  <path fill="#fff" d="M41.216 42.24 L22.784 42.24 L32 26.88 Z"/>
+</svg>

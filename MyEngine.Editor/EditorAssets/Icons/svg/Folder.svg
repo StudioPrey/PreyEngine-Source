@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Folder: vector master. White mask on a 64x64 canvas; the Editor tints it at draw time. Edit freely, then run tools/IconBake/bake_icons.py. -->
+  <path fill="#fff" d="M0 2.56 L35.2 2.56 L35.2 11.24 L0 11.24 Z M0 10.24 L64 10.24 L64 64 L0 64 Z"/>
+</svg>
